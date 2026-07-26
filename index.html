@@ -1,0 +1,3294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1e1e2f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <title>Focus Habit Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    <style>
+        /* ============================================================
+           ESTILOS DE LA PANTALLA DE CARGA (SPLASH SCREEN)
+           ============================================================ */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0a12;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.8s ease;
+        }
+
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeInLogo 1s ease;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 28px;
+            box-shadow: 0 0 40px rgba(167, 139, 250, 0.3);
+            margin-bottom: 20px;
+            background: #1e1e2f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            border-radius: 28px;
+            object-fit: cover;
+        }
+
+        .app-name {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #a78bfa, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .app-sub {
+            font-size: 0.8rem;
+            color: #6b7280;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 30px;
+        }
+
+        /* ============================================================
+           CÍRCULO GIRATORIO ARCOÍRIS
+           ============================================================ */
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            position: relative;
+            animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+
+        .spinner-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b);
+            animation: rainbowSpin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+            mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+        }
+
+        .spinner-center {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            right: 6px;
+            bottom: 6px;
+            border-radius: 50%;
+            background: #0a0a12;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes rainbowSpin {
+            0% { transform: rotate(0deg); filter: drop-shadow(0 0 10px rgba(255,107,107,0.6)); }
+            25% { filter: drop-shadow(0 0 15px rgba(255,217,61,0.8)); }
+            50% { filter: drop-shadow(0 0 15px rgba(107,203,119,0.8)); }
+            75% { filter: drop-shadow(0 0 15px rgba(77,150,255,0.8)); }
+            100% { transform: rotate(360deg); filter: drop-shadow(0 0 10px rgba(255,107,107,0.6)); }
+        }
+
+        @keyframes fadeInLogo {
+            0% { opacity: 0; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* ============================================================
+           ESTILOS PRINCIPALES DE LA APP
+           ============================================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, sans-serif;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1e1e2f, #2a2a40);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            touch-action: pan-y;
+        }
+
+        #app {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 32px;
+            padding: 30px 25px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #f0f0f5;
+            margin-top: 20px;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        #app.visible {
+            opacity: 1;
+        }
+
+        /* ======================================== */
+        /* MENÚ */
+        /* ======================================== */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, #a78bfa, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+
+        .main-menu {
+            display: flex;
+            gap: 6px;
+            margin: 8px 0 16px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .menu-btn {
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            padding: 8px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: 0.3s;
+            touch-action: manipulation;
+        }
+
+        .menu-btn:hover {
+            color: #f0f0f5;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .menu-btn.active {
+            color: #f0f0f5;
+            background: rgba(99, 102, 241, 0.25);
+        }
+
+        .menu-btn .badge {
+            background: rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            font-size: 0.6rem;
+            padding: 1px 8px;
+            border-radius: 10px;
+            margin-left: 4px;
+        }
+
+        .panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ======================================== */
+        /* CIRCULO DE PROGRESO NEÓN ARCOÍRIS */
+        /* ======================================== */
+        .progress-ring-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 0 16px 0;
+            position: relative;
+        }
+
+        .progress-ring {
+            position: relative;
+            width: 140px;
+            height: 140px;
+        }
+
+        .progress-ring svg {
+            transform: rotate(-90deg);
+            width: 140px;
+            height: 140px;
+        }
+
+        .progress-ring .bg-circle {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.06);
+            stroke-width: 8;
+        }
+
+        .progress-ring .progress-circle {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.6));
+        }
+
+        .progress-ring .progress-circle.rainbow {
+            animation: rainbowBorder 3s linear infinite;
+        }
+
+        @keyframes rainbowBorder {
+            0% { stroke: #ff6b6b; filter: drop-shadow(0 0 15px rgba(255,107,107,0.8)); }
+            16% { stroke: #ffa94d; filter: drop-shadow(0 0 15px rgba(255,169,77,0.8)); }
+            33% { stroke: #ffd93d; filter: drop-shadow(0 0 15px rgba(255,217,61,0.8)); }
+            50% { stroke: #6bcb77; filter: drop-shadow(0 0 15px rgba(107,203,119,0.8)); }
+            66% { stroke: #4d96ff; filter: drop-shadow(0 0 15px rgba(77,150,255,0.8)); }
+            83% { stroke: #9b59b6; filter: drop-shadow(0 0 15px rgba(155,89,182,0.8)); }
+            100% { stroke: #ff6b6b; filter: drop-shadow(0 0 15px rgba(255,107,107,0.8)); }
+        }
+
+        .progress-ring .center-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .progress-ring .center-text .percentage {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: rainbowText 3s linear infinite;
+            line-height: 1.2;
+        }
+
+        @keyframes rainbowText {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 300% 50%; }
+        }
+
+        .progress-ring .center-text .label {
+            font-size: 0.55rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            -webkit-text-fill-color: #9ca3af;
+        }
+
+        .progress-ring .center-text .sub-label {
+            font-size: 0.5rem;
+            color: #6b7280;
+            -webkit-text-fill-color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 10px;
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
+
+        .progress-stats span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-stats .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .progress-stats .dot.habits { background: #fbbf24; }
+        .progress-stats .dot.time { background: #4ade80; }
+
+        /* ======================================== */
+        /* HÁBITOS - DRAG & DROP */
+        /* ======================================== */
+        #habits-container {
+            margin: 12px 0 16px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 350px;
+            overflow-y: auto;
+            touch-action: pan-y;
+        }
+
+        .habit-item {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 12px 16px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            flex-wrap: wrap;
+            gap: 8px;
+            touch-action: none;
+            cursor: grab;
+            position: relative;
+        }
+
+        .habit-item:active {
+            cursor: grabbing;
+        }
+
+        .habit-item.dragging {
+            opacity: 0.4;
+            transform: scale(0.95);
+            background: rgba(99, 102, 241, 0.15);
+            border-color: #818cf8;
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+            z-index: 100;
+        }
+
+        .habit-item.drag-over {
+            border-color: #818cf8;
+            background: rgba(99, 102, 241, 0.1);
+            transform: scale(1.02);
+        }
+
+        .habit-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .habit-item .drag-handle {
+            color: #4b5563;
+            font-size: 0.8rem;
+            padding: 4px 8px 4px 4px;
+            cursor: grab;
+            touch-action: none;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .habit-item:hover .drag-handle {
+            opacity: 1;
+            color: #9ca3af;
+        }
+
+        .habit-item:active .drag-handle {
+            cursor: grabbing;
+        }
+
+        /* ======================================== */
+        /* RESTO DE ESTILOS DE HÁBITOS */
+        /* ======================================== */
+        .habit-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex: 1;
+            pointer-events: none;
+        }
+
+        .habit-name {
+            font-size: 1rem;
+            font-weight: 500;
+            pointer-events: none;
+        }
+
+        .habit-streak {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+
+        .habit-frequency {
+            font-size: 0.6rem;
+            color: #9ca3af;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .habit-frequency.unique {
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.2);
+            background: rgba(251, 191, 36, 0.1);
+        }
+
+        .habit-time {
+            font-size: 0.65rem;
+            color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(96, 165, 250, 0.15);
+        }
+
+        .habit-type {
+            font-size: 0.6rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .habit-type.unique-type {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.15);
+        }
+
+        .habit-type.time-type {
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.15);
+        }
+
+        .habit-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            pointer-events: auto;
+        }
+
+        .habit-check {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid #4b5563;
+            background: transparent;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            flex-shrink: 0;
+            touch-action: manipulation;
+        }
+
+        .habit-check.completed {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+
+        .habit-check:hover {
+            transform: scale(1.05);
+        }
+
+        .habit-check.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .habit-delete {
+            background: transparent;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: 0.2s;
+            touch-action: manipulation;
+        }
+
+        .habit-delete:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .time-input-mini {
+            width: 50px;
+            padding: 4px 6px;
+            border-radius: 8px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 0.75rem;
+            text-align: center;
+            outline: none;
+        }
+
+        .time-input-mini:focus {
+            border-color: #818cf8;
+        }
+
+        .time-input-mini::placeholder {
+            color: #6b7280;
+            font-size: 0.6rem;
+        }
+
+        .btn-mini {
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(99, 102, 241, 0.2);
+            color: #a78bfa;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 500;
+            touch-action: manipulation;
+        }
+
+        .btn-mini:hover {
+            background: rgba(99, 102, 241, 0.35);
+        }
+
+        .btn-mini.save-time {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+        }
+
+        .btn-mini.save-time:hover {
+            background: rgba(34, 197, 94, 0.3);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6b7280;
+            padding: 30px 0;
+            font-size: 0.95rem;
+        }
+
+        .empty-state span {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        /* ======================================== */
+        /* NUEVO */
+        /* ======================================== */
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 14px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 0.95rem;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: #818cf8;
+        }
+
+        .form-group input::placeholder {
+            color: #6b7280;
+        }
+
+        .form-group select option {
+            background: #1e1e2f;
+            color: white;
+        }
+
+        .frequency-selector-form {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .freq-btn-form {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.2);
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: 0.2s;
+            flex: 1;
+            text-align: center;
+            min-width: 60px;
+            touch-action: manipulation;
+        }
+
+        .freq-btn-form:hover {
+            border-color: #6366f1;
+            color: #f0f0f5;
+        }
+
+        .freq-btn-form.active {
+            border-color: #818cf8;
+            background: rgba(99, 102, 241, 0.2);
+            color: #f0f0f5;
+        }
+
+        .type-selector-form {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .type-btn-form {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.2);
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: 0.2s;
+            flex: 1;
+            text-align: center;
+            min-width: 80px;
+            touch-action: manipulation;
+        }
+
+        .type-btn-form:hover {
+            border-color: #6366f1;
+            color: #f0f0f5;
+        }
+
+        .type-btn-form.active {
+            border-color: #818cf8;
+            background: rgba(99, 102, 241, 0.2);
+            color: #f0f0f5;
+        }
+
+        .type-btn-form.unique-type-btn {
+            border-color: #fbbf24;
+            color: #fbbf24;
+        }
+
+        .type-btn-form.unique-type-btn:hover {
+            border-color: #fbbf24;
+            background: rgba(251, 191, 36, 0.1);
+        }
+
+        .type-btn-form.unique-type-btn.active {
+            border-color: #fbbf24;
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .btn-primary {
+            padding: 14px 28px;
+            border-radius: 14px;
+            border: none;
+            background: linear-gradient(135deg, #818cf8, #6366f1);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1rem;
+            width: 100%;
+            touch-action: manipulation;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.01);
+            box-shadow: 0 8px 25px -8px #6366f1;
+        }
+
+        /* ======================================== */
+        /* EDITAR */
+        /* ======================================== */
+        .edit-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 14px 16px;
+            border-radius: 14px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .edit-item .edit-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-top: 6px;
+        }
+
+        .edit-item .edit-row .edit-field {
+            flex: 1;
+            min-width: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .edit-item .edit-row .edit-field.name-field {
+            flex: 2;
+            min-width: 140px;
+        }
+
+        .edit-item .edit-row .edit-field.freq-field {
+            flex: 1.2;
+            min-width: 110px;
+        }
+
+        .edit-item .edit-row .edit-field.time-field {
+            flex: 0.8;
+            min-width: 90px;
+        }
+
+        .edit-item .edit-row .edit-field.type-field {
+            flex: 1;
+            min-width: 110px;
+        }
+
+        .edit-item .edit-row input,
+        .edit-item .edit-row select {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .edit-item .edit-row input:focus,
+        .edit-item .edit-row select:focus {
+            border-color: #818cf8;
+        }
+
+        .edit-item .edit-row select option {
+            background: #1e1e2f;
+        }
+
+        .edit-item .edit-label {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+
+        .edit-item .edit-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        /* Responsive para editar en móvil */
+        @media (max-width: 600px) {
+            .edit-item .edit-row {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .edit-item .edit-row .edit-field {
+                min-width: unset;
+                width: 100%;
+            }
+
+            .edit-item .edit-row .edit-field.name-field {
+                min-width: unset;
+            }
+
+            .edit-item .edit-row .edit-field.freq-field {
+                min-width: unset;
+            }
+
+            .edit-item .edit-row .edit-field.time-field {
+                min-width: unset;
+            }
+
+            .edit-item .edit-row .edit-field.type-field {
+                min-width: unset;
+            }
+
+            .edit-item {
+                padding: 12px 14px;
+            }
+
+            .edit-item .edit-actions {
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .edit-item .edit-actions .btn-mini {
+                width: 100%;
+                text-align: center;
+                padding: 10px;
+            }
+        }
+
+        /* ======================================== */
+        /* ESTADÍSTICAS */
+        /* ======================================== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 12px 0 16px 0;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .stat-card .number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #a78bfa;
+            display: block;
+        }
+
+        .stat-card .label {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 12px 0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .chart-container h3 {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 200px;
+        }
+
+        .chart-wrapper.tall {
+            height: 250px;
+        }
+
+        /* ======================================== */
+        /* AJUSTES */
+        /* ======================================== */
+        .settings-section {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 18px;
+            margin: 12px 0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .settings-section h3 {
+            font-size: 0.95rem;
+            color: #e5e7eb;
+            margin-bottom: 12px;
+        }
+
+        .settings-section .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .settings-section .setting-row:last-child {
+            border-bottom: none;
+        }
+
+        .settings-section .setting-label {
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+
+        .settings-section .setting-label .sub {
+            font-size: 0.7rem;
+            color: #6b7280;
+            display: block;
+        }
+
+        /* Toggle Switch */
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 28px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #374151;
+            transition: 0.3s;
+            border-radius: 34px;
+        }
+
+        .toggle .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle input:checked+.slider {
+            background: linear-gradient(135deg, #818cf8, #6366f1);
+        }
+
+        .toggle input:checked+.slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Días de la semana */
+        .days-selector {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .day-btn {
+            padding: 6px 12px;
+            border-radius: 10px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.2);
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 500;
+            transition: 0.2s;
+            min-width: 36px;
+            text-align: center;
+            touch-action: manipulation;
+        }
+
+        .day-btn:hover {
+            border-color: #6366f1;
+            color: #f0f0f5;
+        }
+
+        .day-btn.active {
+            border-color: #818cf8;
+            background: rgba(99, 102, 241, 0.2);
+            color: #f0f0f5;
+        }
+
+        /* Horas */
+        .time-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .time-selector input[type="time"] {
+            padding: 6px 10px;
+            border-radius: 10px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 0.8rem;
+            outline: none;
+            min-width: 100px;
+        }
+
+        .time-selector input[type="time"]:focus {
+            border-color: #818cf8;
+        }
+
+        .time-selector .time-label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            min-width: 60px;
+        }
+
+        .btn-secondary {
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: 1px solid #374151;
+            background: rgba(0, 0, 0, 0.2);
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: 0.2s;
+            touch-action: manipulation;
+        }
+
+        .btn-secondary:hover {
+            border-color: #6366f1;
+            color: #f0f0f5;
+        }
+
+        .btn-secondary.save {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: #6366f1;
+            color: #a78bfa;
+        }
+
+        .btn-secondary.save:hover {
+            background: rgba(99, 102, 241, 0.35);
+        }
+
+        /* Scrolls */
+        #habits-container::-webkit-scrollbar,
+        .edit-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        #habits-container::-webkit-scrollbar-track,
+        .edit-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #habits-container::-webkit-scrollbar-thumb,
+        .edit-list::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
+        }
+
+        .edit-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            #app { padding: 18px 14px; }
+            header h1 { font-size: 1.4rem; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+            .stat-card .number { font-size: 1.2rem; }
+            .habit-item { padding: 10px 12px; }
+            .habit-name { font-size: 0.9rem; }
+            .chart-wrapper { height: 150px; }
+            .chart-wrapper.tall { height: 200px; }
+            .menu-btn { font-size: 0.75rem; padding: 6px 12px; }
+            .frequency-selector-form .freq-btn-form,
+            .type-selector-form .type-btn-form { font-size: 0.65rem; padding: 8px 10px; min-width: 40px; }
+            .progress-ring { width: 110px; height: 110px; }
+            .progress-ring svg { width: 110px; height: 110px; }
+            .progress-ring .center-text .percentage { font-size: 1.6rem; }
+            .progress-stats { gap: 16px; font-size: 0.6rem; flex-wrap: wrap; }
+            .settings-section .setting-row { flex-direction: column; align-items: flex-start; }
+            .time-selector { width: 100%; }
+            .time-selector input[type="time"] { flex: 1; min-width: 80px; }
+            .days-selector { width: 100%; }
+            .day-btn { flex: 1; min-width: 30px; padding: 6px 8px; font-size: 0.65rem; }
+            .logo { width: 90px; height: 90px; }
+            .app-name { font-size: 1.3rem; }
+            .spinner { width: 48px; height: 48px; }
+            .habit-item .drag-handle { font-size: 0.7rem; padding: 2px 6px 2px 2px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+    PANTALLA DE CARGA (SPLASH SCREEN)
+    ============================================================ -->
+    <div id="splash-screen">
+        <div class="logo-container">
+            <div class="logo">
+                <img src="icon-192.png" alt="Focus Habit Tracker" id="splash-logo" />
+            </div>
+            <div class="app-name">Focus Tracker</div>
+            <div class="app-sub">Cargando...</div>
+            <div class="spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-center"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    APLICACIÓN PRINCIPAL
+    ============================================================ -->
+    <div id="app">
+        <header>
+            <div>
+                <h1>🎯 Focus Tracker</h1>
+                <p>Gestiona tus hábitos y tiempo</p>
+            </div>
+            <div style="font-size:0.75rem; color:#6b7280;" id="habit-count-badge">0 hábitos</div>
+        </header>
+
+        <nav class="main-menu">
+            <button class="menu-btn" data-panel="nuevo">➕ Nuevo</button>
+            <button class="menu-btn active" data-panel="habitos">📋 Hábitos <span class="badge" id="menu-habit-count">0</span></button>
+            <button class="menu-btn" data-panel="editar">✏️ Editar</button>
+            <button class="menu-btn" data-panel="estadisticas">📊 Estadísticas</button>
+            <button class="menu-btn" data-panel="ajustes">⚙️ Ajustes</button>
+        </nav>
+
+        <!-- ======================================== -->
+        <!-- PANEL: NUEVO -->
+        <!-- ======================================== -->
+        <div id="panel-nuevo" class="panel">
+            <h2 style="font-size:1.2rem; margin-bottom:12px; color:#e5e7eb;">Crear nuevo hábito</h2>
+
+            <div class="form-group">
+                <label for="habit-name">Nombre del hábito</label>
+                <input type="text" id="habit-name" placeholder="Ej: Tomar 2L de agua, Leer 30 min..." />
+            </div>
+
+            <div class="form-group">
+                <label>Frecuencia (días en que aplica)</label>
+                <div class="frequency-selector-form" id="frequency-selector-form">
+                    <button class="freq-btn-form active" data-freq="daily">📅 Todos los días</button>
+                    <button class="freq-btn-form" data-freq="weekdays">💼 Días hábiles</button>
+                    <button class="freq-btn-form" data-freq="weekend">🎉 Fin de semana</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tipo de tarea</label>
+                <div class="type-selector-form" id="type-selector-form">
+                    <button class="type-btn-form active" data-type="time">⏱️ Con tiempo (registra minutos)</button>
+                    <button class="type-btn-form unique-type-btn" data-type="unique">⭐ Único (una vez al día, sin tiempo)</button>
+                </div>
+            </div>
+
+            <div class="form-group" id="time-input-group">
+                <label for="habit-expected-time">Tiempo esperado (minutos)</label>
+                <input type="number" id="habit-expected-time" placeholder="Ej: 30" min="1" value="30" />
+            </div>
+
+            <button class="btn-primary" id="save-habit-btn">💾 Guardar hábito</button>
+
+            <div style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.04);">
+                <p style="font-size:0.8rem; color:#6b7280;">
+                    ⚡ <strong>"Con tiempo"</strong>: puedes registrar cuántos minutos hiciste cada día.
+                    <br>⭐ <strong>"Único"</strong>: solo marcas como hecho (ej: tomar 2L de agua). Se considera 100% completado.
+                </p>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- PANEL: HÁBITOS -->
+        <!-- ======================================== -->
+        <div id="panel-habitos" class="panel active">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:6px;">
+                <h2 style="font-size:1.1rem; color:#e5e7eb;">📋 Mis hábitos</h2>
+                <span style="font-size:0.75rem; color:#6b7280;" id="habitos-counter">0 activos</span>
+            </div>
+
+            <!-- ===== CÍRCULO DE PROGRESO NEÓN ARCOÍRIS ===== -->
+            <div class="progress-ring-container" id="progress-container">
+                <div class="progress-ring" id="progress-ring">
+                    <svg viewBox="0 0 140 140">
+                        <circle class="bg-circle" cx="70" cy="70" r="58" />
+                        <circle class="progress-circle rainbow" id="progress-circle"
+                        cx="70" cy="70" r="58"
+                        stroke-dasharray="0 364.4"
+                        stroke-dashoffset="0" />
+                    </svg>
+                    <div class="center-text">
+                        <div class="percentage" id="progress-percentage">0%</div>
+                        <div class="label" id="progress-label">Completado</div>
+                        <div class="sub-label" id="progress-sub">0 / 0 hábitos</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estadísticas rápidas debajo del círculo -->
+            <div class="progress-stats">
+                <span>
+                    <span class="dot habits"></span>
+                    Hábitos: <strong id="stat-habits-done">0</strong>/<span id="stat-habits-total">0</span>
+                </span>
+                <span>
+                    <span class="dot time"></span>
+                    Tiempo: <strong id="stat-time-done">0</strong>/<span id="stat-time-total">0</span> min
+                </span>
+            </div>
+
+            <section id="habits-container">
+                <!-- Los hábitos se renderizan con JavaScript -->
+            </section>
+
+            <div style="margin-top:10px; padding:10px; background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.03);">
+                <p style="font-size:0.7rem; color:#6b7280;">
+                    👆 <strong>Arrastra</strong> los hábitos con el dedo para reordenarlos.
+                    <br>✅ Marca el círculo para completar el hábito hoy.
+                    <br>⏱️ Los hábitos <strong>"Con tiempo"</strong> permiten registrar minutos.
+                    <br>⭐ Los hábitos <strong>"Único"</strong> se marcan como hechos (100%).
+                </p>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- PANEL: EDITAR -->
+        <!-- ======================================== -->
+        <div id="panel-editar" class="panel">
+            <h2 style="font-size:1.1rem; margin-bottom:12px; color:#e5e7eb;">✏️ Editar hábitos</h2>
+            <div id="edit-list-container" class="edit-list">
+                <!-- Se renderiza con JavaScript -->
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- PANEL: ESTADÍSTICAS -->
+        <!-- ======================================== -->
+        <div id="panel-estadisticas" class="panel">
+            <h2 style="font-size:1.1rem; margin-bottom:8px; color:#e5e7eb;">📊 Estadísticas</h2>
+
+            <div class="stats-grid" id="stats-summary">
+                <div class="stat-card">
+                    <span class="number" id="stat-total">0</span>
+                    <span class="label">Total hábitos</span>
+                </div>
+                <div class="stat-card">
+                    <span class="number" id="stat-completed-today">0</span>
+                    <span class="label">Completados hoy</span>
+                </div>
+                <div class="stat-card">
+                    <span class="number" id="stat-best-streak">0</span>
+                    <span class="label">Mejor racha</span>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>📈 Tendencia de avance (últimos 15 días) - Tiempo esperado vs real (diario)</h3>
+                <div class="chart-wrapper tall">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>⏱️ Tiempo esperado vs tiempo real (promedio semanal)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="timeComparisonChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>📅 Minutos totales por día (esta semana)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="weeklyMinutesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>📊 Hábitos completados por día (esta semana)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="weeklyHabitsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>📅 Avance mensual (últimos 30 días) - Tiempo esperado vs real</h3>
+                <div class="chart-wrapper tall">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>📊 Avance anual (últimos 12 meses) - Tiempo esperado vs real</h3>
+                <div class="chart-wrapper tall">
+                    <canvas id="yearlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- PANEL: AJUSTES -->
+        <!-- ======================================== -->
+        <div id="panel-ajustes" class="panel">
+            <h2 style="font-size:1.1rem; margin-bottom:8px; color:#e5e7eb;">⚙️ Ajustes de notificaciones</h2>
+
+            <div class="settings-section">
+                <h3>🔔 Notificaciones</h3>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        Activar notificaciones
+                        <span class="sub">Recibir recordatorios para completar tus hábitos</span>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="notifications-toggle" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>📅 Días de la semana</h3>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        Selecciona los días en que quieres recibir notificaciones
+                        <span class="sub">Las notificaciones solo se enviarán los días seleccionados</span>
+                    </div>
+                    <div class="days-selector" id="days-selector">
+                        <button class="day-btn active" data-day="1">Lun</button>
+                        <button class="day-btn active" data-day="2">Mar</button>
+                        <button class="day-btn active" data-day="3">Mié</button>
+                        <button class="day-btn active" data-day="4">Jue</button>
+                        <button class="day-btn active" data-day="5">Vie</button>
+                        <button class="day-btn" data-day="6">Sáb</button>
+                        <button class="day-btn" data-day="0">Dom</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>🕐 Horarios</h3>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        Configura las horas de las notificaciones
+                        <span class="sub">Tres recordatorios diarios en los días seleccionados</span>
+                    </div>
+                    <div class="time-selector">
+                        <span class="time-label">Mañana</span>
+                        <input type="time" id="time-morning" value="10:00" />
+                        <span class="time-label">Tarde</span>
+                        <input type="time" id="time-afternoon" value="15:00" />
+                        <span class="time-label">Noche</span>
+                        <input type="time" id="time-night" value="21:30" />
+                    </div>
+                </div>
+                <div style="margin-top:10px;">
+                    <button class="btn-secondary save" id="save-notifications-btn">💾 Guardar configuración</button>
+                    <button class="btn-secondary" id="test-notification-btn" style="margin-left:8px;">🔔 Probar notificación</button>
+                </div>
+            </div>
+
+            <div style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.04);">
+                <p style="font-size:0.8rem; color:#6b7280;">
+                    ⚡ Las notificaciones se enviarán automáticamente en los horarios configurados.
+                    <br>🔔 Debes dar permiso para recibir notificaciones en tu navegador.
+                    <br>📱 Si estás en móvil, asegúrate de tener la página abierta o agregada a la pantalla de inicio.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // PANTALLA DE CARGA (SPLASH SCREEN)
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const splash = document.getElementById('splash-screen');
+                const app = document.getElementById('app');
+                splash.classList.add('hidden');
+                app.classList.add('visible');
+                setTimeout(function() {
+                    splash.style.display = 'none';
+                }, 800);
+            }, 5000);
+        });
+
+        // ============================================================
+        // ESTADO
+        // ============================================================
+        let habits = [];
+        let selectedFrequency = 'daily';
+        let selectedType = 'time';
+
+        // Configuración de notificaciones
+        let notificationsConfig = {
+            enabled: true,
+            days: [1, 2, 3, 4, 5],
+            times: {
+                morning: '10:00',
+                afternoon: '15:00',
+                night: '21:30'
+            }
+        };
+
+        // ============================================================
+        // DRAG & DROP - Variables globales
+        // ============================================================
+        let dragData = {
+            draggedIndex: null,
+            draggedElement: null,
+            dragOverIndex: null,
+            touchStartX: 0,
+            touchStartY: 0,
+            isDragging: false,
+            initialTouchY: 0,
+            currentTouchY: 0
+        };
+
+        // ============================================================
+        // RESPALDO AUTOMÁTICO CADA 15 DÍAS
+        // ============================================================
+        const BACKUP_INTERVAL_DAYS = 15;
+        const BACKUP_KEY = 'lastBackupDate';
+
+        function getLastBackupDate() {
+            const saved = localStorage.getItem(BACKUP_KEY);
+            return saved ? new Date(saved) : null;
+        }
+
+        function setLastBackupDate() {
+            localStorage.setItem(BACKUP_KEY, new Date().toISOString());
+        }
+
+        function shouldCreateBackup() {
+            const lastBackup = getLastBackupDate();
+            if (!lastBackup) return true;
+            const daysDiff = (Date.now() - lastBackup.getTime()) / (1000 * 60 * 60 * 24);
+            return daysDiff >= BACKUP_INTERVAL_DAYS;
+        }
+
+        function createBackup() {
+            try {
+                const data = {
+                    habits: habits,
+                    notificationsConfig: notificationsConfig,
+                    version: '1.0',
+                    backupDate: new Date().toISOString()
+                };
+
+                const json = JSON.stringify(data, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                const link = document.createElement('a');
+                link.href = url;
+                const dateStr = new Date().toISOString().split('T')[0];
+                link.download = `focus_habit_backup_${dateStr}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                setLastBackupDate();
+                console.log('✅ Respaldo automático creado');
+                return true;
+            } catch (e) {
+                console.error('❌ Error al crear respaldo:', e);
+                return false;
+            }
+        }
+
+        function checkAndBackup() {
+            if (shouldCreateBackup() && habits.length > 0) {
+                setTimeout(() => {
+                    createBackup();
+                }, 3000);
+            }
+        }
+
+        // ============================================================
+        // CARGAR DATOS
+        // ============================================================
+        const saved = localStorage.getItem('focusHabits');
+        if (saved) {
+            try {
+                habits = JSON.parse(saved);
+                habits.forEach(h => {
+                    if (!h.expectedTime) h.expectedTime = 30;
+                    if (!h.timeLogs) h.timeLogs = {};
+                    if (!h.frequency) h.frequency = 'daily';
+                    if (!h.type) h.type = 'time';
+                    if (!h.id) h.id = generateId();
+                });
+            } catch (e) {
+                habits = [];
+            }
+        }
+
+        // Cargar configuración de notificaciones
+        const savedConfig = localStorage.getItem('notificationsConfig');
+        if (savedConfig) {
+            try {
+                const parsed = JSON.parse(savedConfig);
+                notificationsConfig = { ...notificationsConfig, ...parsed };
+            } catch (e) {}
+        }
+
+        // ============================================================
+        // FUNCIONES
+        // ============================================================
+        let trendChartInstance = null;
+        let timeComparisonChartInstance = null;
+        let weeklyMinutesChartInstance = null;
+        let weeklyHabitsChartInstance = null;
+        let monthlyChartInstance = null;
+        let yearlyChartInstance = null;
+
+        const CIRCUMFERENCE = 2 * Math.PI * 58;
+
+        function getFrequencyLabel(freq) {
+            const map = { 'daily': 'Todos los días', 'weekdays': 'Días hábiles', 'weekend': 'Fin de semana' };
+            return map[freq] || freq;
+        }
+
+        function getFrequencyShortLabel(freq) {
+            const map = { 'daily': 'Diario', 'weekdays': 'Laboral', 'weekend': 'Fin sem.' };
+            return map[freq] || freq;
+        }
+
+        function getTypeLabel(type) {
+            return type === 'unique' ? '⭐ Único' : '⏱️ Con tiempo';
+        }
+
+        function getTypeShortLabel(type) {
+            return type === 'unique' ? 'Único' : 'Tiempo';
+        }
+
+        function isDayValidForFrequency(date, frequency) {
+            const day = date.getDay();
+            if (frequency === 'daily') return true;
+            if (frequency === 'weekdays') return day >= 1 && day <= 5;
+            if (frequency === 'weekend') return day === 0 || day === 6;
+            return true;
+        }
+
+        function getToday() { return new Date().toDateString(); }
+
+        function getDateStr(date) { return date.toDateString(); }
+
+        function getLast7Days() {
+            const days = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                days.push(d);
+            }
+            return days;
+        }
+
+        function getLast15Days() {
+            const days = [];
+            for (let i = 14; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                days.push(d);
+            }
+            return days;
+        }
+
+        function getLast30Days() {
+            const days = [];
+            for (let i = 29; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                days.push(d);
+            }
+            return days;
+        }
+
+        function getLast12Months() {
+            const months = [];
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date();
+                d.setMonth(d.getMonth() - i);
+                d.setDate(1);
+                months.push(d);
+            }
+            return months;
+        }
+
+        function getShortDayName(date) {
+            const names = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
+            return names[date.getDay()];
+        }
+
+        function getMonthName(date) {
+            const names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+            return names[date.getMonth()];
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        }
+
+        // ============================================================
+        // NOTIFICACIONES
+        // ============================================================
+        function requestNotificationPermission() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            }
+        }
+
+        function sendNotification(title, message) {
+            if (!notificationsConfig.enabled) return;
+            if (!('Notification' in window)) return;
+            if (Notification.permission !== 'granted') return;
+
+            const today = new Date().getDay();
+            if (!notificationsConfig.days.includes(today)) return;
+
+            try {
+                const notification = new Notification(title, {
+                    body: message,
+                    icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ctext y=".9em" font-size="90"%3E🎯%3C/text%3E%3C/svg%3E',
+                    silent: false,
+                    requireInteraction: true,
+                    tag: 'focus-habit-tracker'
+                });
+
+                setTimeout(() => {
+                    notification.close();
+                }, 10000);
+            } catch (e) {
+                console.log('Error al enviar notificación:', e);
+            }
+        }
+
+        function testNotification() {
+            if (!('Notification' in window)) {
+                alert('Tu navegador no soporta notificaciones.');
+                return;
+            }
+
+            if (Notification.permission !== 'granted') {
+                Notification.requestPermission().then(perm => {
+                    if (perm === 'granted') {
+                        sendNotification('🔔 Prueba de notificación', '¡Funciona! Recuerda completar tus hábitos hoy. 🎯');
+                        alert('✅ Notificación enviada!');
+                    } else {
+                        alert('❌ Permiso denegado. Activa las notificaciones en la configuración de tu navegador.');
+                    }
+                });
+            } else {
+                sendNotification('🔔 Prueba de notificación', '¡Funciona! Recuerda completar tus hábitos hoy. 🎯');
+                alert('✅ Notificación enviada!');
+            }
+        }
+
+        function scheduleNotifications() {
+            if (window._notificationTimeouts) {
+                window._notificationTimeouts.forEach(t => clearTimeout(t));
+                window._notificationTimeouts = [];
+            }
+
+            if (!notificationsConfig.enabled) return;
+
+            const timeouts = [];
+            const today = new Date();
+            const todayDay = today.getDay();
+
+            if (!notificationsConfig.days.includes(todayDay)) return;
+
+            const times = [
+                { key: 'morning', label: '🌅 Buenos días', message: 'Revisa tus hábitos de hoy. ¡Empieza con energía! 💪' },
+                { key: 'afternoon', label: '☀️ Buenas tardes', message: '¿Ya avanzaste con tus hábitos hoy? Sigue así! 🚀' },
+                { key: 'night', label: '🌙 Última oportunidad', message: 'Revisa tus hábitos del día. ¡No dejes nada pendiente! ⭐' }
+            ];
+
+            times.forEach((t) => {
+                const timeStr = notificationsConfig.times[t.key];
+                if (!timeStr) return;
+
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                const target = new Date(today);
+                target.setHours(hours, minutes, 0, 0);
+
+                let delay = target.getTime() - Date.now();
+                if (delay < 0) {
+                    target.setDate(target.getDate() + 1);
+                    delay = target.getTime() - Date.now();
+                }
+
+                const timeoutId = setTimeout(() => {
+                    const now = new Date();
+                    const nowDay = now.getDay();
+                    if (notificationsConfig.days.includes(nowDay) && notificationsConfig.enabled) {
+                        sendNotification(`${t.label} - Focus Tracker`, t.message);
+                    }
+                    scheduleNotifications();
+                }, delay);
+
+                timeouts.push(timeoutId);
+            });
+
+            window._notificationTimeouts = timeouts;
+        }
+
+        // ============================================================
+        // DRAG & DROP - FUNCIONES
+        // ============================================================
+        function swapHabits(fromIndex, toIndex) {
+            if (fromIndex === toIndex) return;
+            const temp = habits[fromIndex];
+            habits[fromIndex] = habits[toIndex];
+            habits[toIndex] = temp;
+            saveAndRender();
+        }
+
+        // ============================================================
+        // CÁLCULO DE RACHA
+        // ============================================================
+        function calculateStreak(habit) {
+            if (!habit.completedDates || habit.completedDates.length === 0) return 0;
+            if (!habit.frequency) habit.frequency = 'daily';
+
+            const today = new Date();
+            let streak = 0;
+            let checkDate = new Date(today);
+
+            while (!isDayValidForFrequency(checkDate, habit.frequency)) {
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+
+            const lastValidStr = getDateStr(checkDate);
+            const todayStr = getDateStr(today);
+
+            if (!habit.completedDates.includes(lastValidStr)) {
+                if (isDayValidForFrequency(today, habit.frequency) && habit.completedDates.includes(todayStr)) {
+                    streak = 1;
+                    checkDate = new Date(today);
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    return 0;
+                }
+            } else {
+                streak = 1;
+                checkDate = new Date(today);
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+
+            while (true) {
+                while (!isDayValidForFrequency(checkDate, habit.frequency)) {
+                    checkDate.setDate(checkDate.getDate() - 1);
+                }
+                const dateStr = getDateStr(checkDate);
+                if (habit.completedDates.includes(dateStr)) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            return streak;
+        }
+
+        function getBestStreak(habit) {
+            if (!habit.completedDates || habit.completedDates.length === 0) return 0;
+            if (!habit.frequency) habit.frequency = 'daily';
+
+            const dates = habit.completedDates.map(d => new Date(d));
+            dates.sort((a, b) => a - b);
+
+            let best = 0;
+            let current = 0;
+
+            for (let i = 0; i < dates.length; i++) {
+                const date = dates[i];
+                if (!isDayValidForFrequency(date, habit.frequency)) continue;
+                if (i === 0) {
+                    current = 1;
+                } else {
+                    let prevValid = new Date(date);
+                    let found = false;
+                    let daysBack = 1;
+                    while (daysBack <= 7) {
+                        prevValid.setDate(prevValid.getDate() - 1);
+                        if (isDayValidForFrequency(prevValid, habit.frequency)) {
+                            const prevStr = getDateStr(prevValid);
+                            if (habit.completedDates.includes(prevStr)) {
+                                current++;
+                                found = true;
+                            }
+                            break;
+                        }
+                        daysBack++;
+                    }
+                    if (!found) {
+                        best = Math.max(best, current);
+                        current = 1;
+                    }
+                }
+            }
+            best = Math.max(best, current);
+            return best;
+        }
+
+        function getGlobalBestStreak() {
+            let maxStreak = 0;
+            habits.forEach(h => {
+                const s = getBestStreak(h);
+                if (s > maxStreak) maxStreak = s;
+            });
+            return maxStreak;
+        }
+
+        // ============================================================
+        // FUNCIONES DE TIEMPO
+        // ============================================================
+        function getTotalMinutesForDate(dateStr) {
+            let total = 0;
+            habits.forEach(h => {
+                if (h.type === 'unique') {
+                    if (h.completedDates && h.completedDates.includes(dateStr)) {
+                        total += h.expectedTime || 30;
+                    }
+                } else {
+                    if (h.timeLogs && h.timeLogs[dateStr]) {
+                        total += h.timeLogs[dateStr];
+                    }
+                }
+            });
+            return total;
+        }
+
+        function getExpectedMinutesForDate(dateStr) {
+            let total = 0;
+            const date = new Date(dateStr);
+            habits.forEach(h => {
+                if (!h.frequency) h.frequency = 'daily';
+                if (isDayValidForFrequency(date, h.frequency)) {
+                    total += h.expectedTime || 30;
+                }
+            });
+            return total;
+        }
+
+        function getAverageRealTime(habit) {
+            if (habit.type === 'unique') {
+                const weekDays = getLast7Days();
+                let completedCount = 0;
+                weekDays.forEach(d => {
+                    const str = getDateStr(d);
+                    if (habit.completedDates && habit.completedDates.includes(str)) {
+                        completedCount++;
+                    }
+                });
+                if (completedCount > 0) {
+                    return habit.expectedTime || 30;
+                }
+                return 0;
+            }
+
+            if (!habit.timeLogs) return 0;
+            const weekDays = getLast7Days();
+            let total = 0;
+            let count = 0;
+            weekDays.forEach(d => {
+                const str = getDateStr(d);
+                if (habit.timeLogs[str]) {
+                    total += habit.timeLogs[str];
+                    count++;
+                }
+            });
+            return count > 0 ? Math.round(total / count) : 0;
+        }
+
+        function getCompletedCountForDate(dateStr) {
+            let count = 0;
+            const date = new Date(dateStr);
+            habits.forEach(h => {
+                if (!h.frequency) h.frequency = 'daily';
+                if (isDayValidForFrequency(date, h.frequency)) {
+                    if (h.completedDates && h.completedDates.includes(dateStr)) {
+                        count++;
+                    }
+                }
+            });
+            return count;
+        }
+
+        // ============================================================
+        // ACTUALIZAR CÍRCULO DE PROGRESO
+        // ============================================================
+        function updateProgressRing() {
+            const today = new Date();
+            const todayStr = getDateStr(today);
+
+            const validHabits = habits.filter(h => {
+                if (!h.frequency) h.frequency = 'daily';
+                return isDayValidForFrequency(today, h.frequency);
+            });
+
+            const totalHabits = validHabits.length;
+            let completedHabits = 0;
+            let totalExpectedTime = 0;
+            let totalRealTime = 0;
+
+            validHabits.forEach(h => {
+                const expected = h.expectedTime || 30;
+                totalExpectedTime += expected;
+                const isCompleted = h.completedDates && h.completedDates.includes(todayStr);
+                if (isCompleted) {
+                    completedHabits++;
+                    if (h.type === 'unique') {
+                        totalRealTime += expected;
+                    } else {
+                        const realTime = h.timeLogs && h.timeLogs[todayStr] ? h.timeLogs[todayStr] : 0;
+                        totalRealTime += realTime > 0 ? realTime : 0;
+                    }
+                }
+            });
+
+            const habitsPercent = totalHabits > 0 ? Math.round((completedHabits / totalHabits) * 100) : 0;
+            const timePercent = totalExpectedTime > 0 ? Math.round((totalRealTime / totalExpectedTime) * 100) : 0;
+            const overallPercent = Math.round((habitsPercent + timePercent) / 2);
+
+            const circle = document.getElementById('progress-circle');
+            const offset = CIRCUMFERENCE - (overallPercent / 100) * CIRCUMFERENCE;
+            circle.style.strokeDasharray = `${CIRCUMFERENCE - offset} ${CIRCUMFERENCE}`;
+
+            document.getElementById('progress-percentage').textContent = `${overallPercent}%`;
+            document.getElementById('progress-sub').textContent = `${completedHabits} / ${totalHabits} hábitos`;
+
+            document.getElementById('stat-habits-done').textContent = completedHabits;
+            document.getElementById('stat-habits-total').textContent = totalHabits;
+            document.getElementById('stat-time-done').textContent = totalRealTime;
+            document.getElementById('stat-time-total').textContent = totalExpectedTime;
+
+            if (totalHabits === 0) {
+                document.getElementById('progress-percentage').textContent = '0%';
+                document.getElementById('progress-sub').textContent = 'Sin hábitos hoy';
+                document.getElementById('stat-habits-total').textContent = '0';
+                document.getElementById('stat-time-total').textContent = '0';
+            }
+        }
+
+        // ============================================================
+        // RENDER: HÁBITOS (con Drag & Drop)
+        // ============================================================
+        function renderHabits() {
+            const container = document.getElementById('habits-container');
+            container.innerHTML = '';
+
+            if (habits.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span>📭</span>
+                        No tienes hábitos activos.<br />
+                        Ve a <strong>"Nuevo"</strong> para crear uno.
+                    </div>
+                `;
+                document.getElementById('habitos-counter').textContent = '0 activos';
+                updateProgressRing();
+                return;
+            }
+
+            const today = new Date();
+            const todayStr = getDateStr(today);
+
+            habits.forEach((habit, index) => {
+                if (!habit.frequency) habit.frequency = 'daily';
+                if (!habit.expectedTime) habit.expectedTime = 30;
+                if (!habit.timeLogs) habit.timeLogs = {};
+                if (!habit.type) habit.type = 'time';
+
+                const div = document.createElement('div');
+                div.className = 'habit-item';
+                div.setAttribute('draggable', 'true');
+                div.dataset.index = index;
+
+                const isUnique = habit.type === 'unique';
+                const streak = calculateStreak(habit);
+                const isTodayValid = isDayValidForFrequency(today, habit.frequency);
+                const isCompleted = habit.completedDates && habit.completedDates.includes(todayStr);
+                const canComplete = isTodayValid;
+                const realTime = habit.timeLogs[todayStr] || '';
+                const expectedTime = habit.expectedTime;
+
+                div.innerHTML = `
+                    <div class="drag-handle">⠿</div>
+                    <div class="habit-info">
+                        <span class="habit-name">${escapeHtml(habit.name)}</span>
+                        <span class="habit-frequency">${getFrequencyShortLabel(habit.frequency)}</span>
+                        <span class="habit-type ${isUnique ? 'unique-type' : 'time-type'}">${isUnique ? '⭐ Único' : '⏱️ Tiempo'}</span>
+                        ${!isUnique ? `<span class="habit-time">⏱️ ${expectedTime}min</span>` : ''}
+                        ${!isUnique ? `<span class="habit-streak">🔥 ${streak} ${streak === 1 ? 'día' : 'días'}</span>` : ''}
+                    </div>
+                    <div class="habit-actions">
+                        ${!isUnique && isTodayValid ? `
+                            <input type="number" class="time-input-mini" 
+                                   placeholder="min" 
+                                   value="${realTime}" 
+                                   min="1"
+                                   data-index="${index}" />
+                            <button class="btn-mini save-time" data-index="${index}">
+                                💾
+                            </button>
+                        ` : ''}
+                        <button class="habit-check ${isCompleted ? 'completed' : ''} ${!canComplete ? 'disabled' : ''}" 
+                                data-index="${index}" 
+                                ${!canComplete ? 'disabled' : ''}>
+                            ${isCompleted ? '✓' : (canComplete ? '' : '⛔')}
+                        </button>
+                        <button class="habit-delete" data-index="${index}">✕</button>
+                    </div>
+                `;
+
+                container.appendChild(div);
+            });
+
+            document.getElementById('habitos-counter').textContent = `${habits.length} activos`;
+
+            // ============================================================
+            // EVENTOS: DRAG & DROP (HTML5 nativo + soporte táctil)
+            // ============================================================
+
+            // --- EVENTOS DE ARRASTRE (HTML5) ---
+            container.querySelectorAll('.habit-item').forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    const index = parseInt(this.dataset.index);
+                    dragData.draggedIndex = index;
+                    dragData.draggedElement = this;
+                    this.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', index);
+                });
+
+                item.addEventListener('dragend', function(e) {
+                    this.classList.remove('dragging');
+                    container.querySelectorAll('.habit-item').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+                    dragData.draggedIndex = null;
+                    dragData.draggedElement = null;
+                });
+
+                item.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    const targetIndex = parseInt(this.dataset.index);
+                    if (dragData.draggedIndex !== null && dragData.draggedIndex !== targetIndex) {
+                        container.querySelectorAll('.habit-item').forEach(el => {
+                            el.classList.remove('drag-over');
+                        });
+                        this.classList.add('drag-over');
+                        dragData.dragOverIndex = targetIndex;
+                    }
+                });
+
+                item.addEventListener('dragleave', function(e) {
+                    this.classList.remove('drag-over');
+                });
+
+                item.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('drag-over');
+                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    const toIndex = parseInt(this.dataset.index);
+                    if (fromIndex !== toIndex) {
+                        swapHabits(fromIndex, toIndex);
+                    }
+                    dragData.draggedIndex = null;
+                    dragData.draggedElement = null;
+                });
+            });
+
+            // ============================================================
+            // EVENTOS TÁCTILES (para móviles)
+            // ============================================================
+            let touchDragData = {
+                startIndex: null,
+                currentIndex: null,
+                element: null,
+                startY: 0,
+                isDragging: false,
+                clone: null
+            };
+
+            container.querySelectorAll('.habit-item').forEach(item => {
+                // Touch start
+                item.addEventListener('touchstart', function(e) {
+                    // Solo iniciar arrastre si no se tocó un botón o input
+                    if (e.target.closest('.habit-check') || 
+                        e.target.closest('.habit-delete') || 
+                        e.target.closest('.save-time') || 
+                        e.target.closest('.time-input-mini')) {
+                        return;
+                    }
+
+                    const touch = e.touches[0];
+                    touchDragData.startIndex = parseInt(this.dataset.index);
+                    touchDragData.element = this;
+                    touchDragData.startY = touch.clientY;
+                    touchDragData.isDragging = false;
+                    touchDragData.currentIndex = touchDragData.startIndex;
+
+                    // Crear un clon para feedback visual
+                    const rect = this.getBoundingClientRect();
+                    touchDragData.clone = this.cloneNode(true);
+                    touchDragData.clone.style.position = 'fixed';
+                    touchDragData.clone.style.width = rect.width + 'px';
+                    touchDragData.clone.style.pointerEvents = 'none';
+                    touchDragData.clone.style.opacity = '0.8';
+                    touchDragData.clone.style.transform = 'scale(1.05)';
+                    touchDragData.clone.style.zIndex = '9999';
+                    touchDragData.clone.style.borderColor = '#818cf8';
+                    touchDragData.clone.style.boxShadow = '0 0 40px rgba(99,102,241,0.4)';
+                    touchDragData.clone.style.background = 'rgba(30,30,47,0.95)';
+                    touchDragData.clone.id = 'touch-clone';
+                    document.body.appendChild(touchDragData.clone);
+
+                    // Posicionar el clon
+                    touchDragData.clone.style.left = (rect.left - 8) + 'px';
+                    touchDragData.clone.style.top = (touch.clientY - rect.height / 2) + 'px';
+
+                    // Aplicar estilo de arrastre al original
+                    this.classList.add('dragging');
+                }, { passive: true });
+
+                // Touch move
+                item.addEventListener('touchmove', function(e) {
+                    if (touchDragData.startIndex === null) return;
+                    e.preventDefault();
+
+                    const touch = e.touches[0];
+                    touchDragData.isDragging = true;
+
+                    // Mover el clon
+                    if (touchDragData.clone) {
+                        const rect = this.getBoundingClientRect();
+                        touchDragData.clone.style.top = (touch.clientY - rect.height / 2) + 'px';
+                    }
+
+                    // Determinar sobre qué elemento estamos
+                    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+                    let targetItem = null;
+                    for (let el of elements) {
+                        if (el.classList && el.classList.contains('habit-item') && el !== this) {
+                            targetItem = el;
+                            break;
+                        }
+                    }
+
+                    // Limpiar drag-over previos
+                    container.querySelectorAll('.habit-item').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+
+                    if (targetItem) {
+                        const targetIndex = parseInt(targetItem.dataset.index);
+                        if (touchDragData.currentIndex !== targetIndex) {
+                            touchDragData.currentIndex = targetIndex;
+                            targetItem.classList.add('drag-over');
+                        }
+                    }
+                }, { passive: false });
+
+                // Touch end
+                item.addEventListener('touchend', function(e) {
+                    if (touchDragData.startIndex === null) return;
+
+                    // Remover clon
+                    if (touchDragData.clone) {
+                        touchDragData.clone.remove();
+                        touchDragData.clone = null;
+                    }
+
+                    // Remover estilos
+                    this.classList.remove('dragging');
+                    container.querySelectorAll('.habit-item').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+
+                    // Si hubo arrastre y el índice cambió, intercambiar
+                    if (touchDragData.isDragging && 
+                        touchDragData.currentIndex !== null && 
+                        touchDragData.startIndex !== touchDragData.currentIndex) {
+                        swapHabits(touchDragData.startIndex, touchDragData.currentIndex);
+                    }
+
+                    // Reset
+                    touchDragData.startIndex = null;
+                    touchDragData.currentIndex = null;
+                    touchDragData.element = null;
+                    touchDragData.isDragging = false;
+                }, { passive: true });
+            });
+
+            // ============================================================
+            // EVENTOS: GUARDAR TIEMPO, CHECK, ELIMINAR
+            // ============================================================
+
+            // Eventos: Guardar tiempo
+            document.querySelectorAll('.save-time:not([disabled])').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    const habit = habits[index];
+                    if (habit.type === 'unique') return;
+                    const input = document.querySelector(`.time-input-mini[data-index="${index}"]`);
+                    const minutes = parseInt(input.value);
+                    if (isNaN(minutes) || minutes < 1) {
+                        alert('Por favor, ingresa un número válido de minutos (mínimo 1).');
+                        return;
+                    }
+                    const todayStr = getDateStr(new Date());
+                    if (!habit.timeLogs) habit.timeLogs = {};
+                    habit.timeLogs[todayStr] = minutes;
+                    saveAndRender();
+                });
+            });
+
+            // Eventos: Check
+            document.querySelectorAll('.habit-check:not(.disabled)').forEach((btn) => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    const todayStr = getDateStr(new Date());
+                    const habit = habits[index];
+
+                    if (!habit.completedDates) habit.completedDates = [];
+                    const idx = habit.completedDates.indexOf(todayStr);
+                    if (idx === -1) {
+                        habit.completedDates.push(todayStr);
+                        if (habit.type === 'unique') {
+                            if (!habit.timeLogs) habit.timeLogs = {};
+                            habit.timeLogs[todayStr] = habit.expectedTime || 30;
+                        }
+                    } else {
+                        habit.completedDates.splice(idx, 1);
+                        if (habit.type === 'unique' && habit.timeLogs) {
+                            delete habit.timeLogs[todayStr];
+                        }
+                    }
+                    saveAndRender();
+                });
+            });
+
+            // Eventos: Eliminar
+            document.querySelectorAll('.habit-delete').forEach((btn) => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    if (confirm(`¿Eliminar el hábito "${habits[index].name}"?`)) {
+                        habits.splice(index, 1);
+                        saveAndRender();
+                    }
+                });
+            });
+
+            // Eventos: Enter en input de tiempo
+            document.querySelectorAll('.time-input-mini').forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        const index = parseInt(this.dataset.index);
+                        const saveBtn = document.querySelector(`.save-time[data-index="${index}"]`);
+                        if (saveBtn && !saveBtn.disabled) {
+                            saveBtn.click();
+                        }
+                    }
+                });
+            });
+
+            updateProgressRing();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================================
+        // RENDER: EDITAR (CORREGIDO - CAMPOS BIEN DISTRIBUIDOS)
+        // ============================================================
+        function renderEditPanel() {
+            const container = document.getElementById('edit-list-container');
+            container.innerHTML = '';
+
+            if (habits.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span>✏️</span>
+                        No hay hábitos para editar.<br />
+                        Crea uno en el panel <strong>"Nuevo"</strong>.
+                    </div>
+                `;
+                return;
+            }
+
+            habits.forEach((habit, index) => {
+                const div = document.createElement('div');
+                div.className = 'edit-item';
+
+                const isUnique = habit.type === 'unique';
+
+                div.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                        <strong style="color:#e5e7eb; font-size:0.95rem;">${escapeHtml(habit.name)}</strong>
+                        <span style="font-size:0.65rem; color:#6b7280; background:rgba(255,255,255,0.05); padding:2px 12px; border-radius:10px;">${isUnique ? '⭐ Único' : '⏱️ Con tiempo'}</span>
+                    </div>
+                    <div class="edit-row">
+                        <div class="edit-field name-field">
+                            <span class="edit-label">Nombre</span>
+                            <input type="text" class="edit-name" value="${escapeHtml(habit.name)}" data-index="${index}" />
+                        </div>
+                        <div class="edit-field freq-field">
+                            <span class="edit-label">Frecuencia</span>
+                            <select class="edit-frequency" data-index="${index}">
+                                <option value="daily" ${habit.frequency === 'daily' ? 'selected' : ''}>Todos los días</option>
+                                <option value="weekdays" ${habit.frequency === 'weekdays' ? 'selected' : ''}>Días hábiles</option>
+                                <option value="weekend" ${habit.frequency === 'weekend' ? 'selected' : ''}>Fin de semana</option>
+                            </select>
+                        </div>
+                        <div class="edit-field time-field">
+                            <span class="edit-label">Tiempo (min)</span>
+                            <input type="number" class="edit-time" value="${habit.expectedTime || 30}" min="1" data-index="${index}" />
+                        </div>
+                        <div class="edit-field type-field">
+                            <span class="edit-label">Tipo</span>
+                            <select class="edit-type" data-index="${index}">
+                                <option value="time" ${habit.type === 'time' ? 'selected' : ''}>⏱️ Con tiempo</option>
+                                <option value="unique" ${habit.type === 'unique' ? 'selected' : ''}>⭐ Único</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="edit-actions">
+                        <button class="btn-mini save-edit" data-index="${index}">💾 Guardar cambios</button>
+                    </div>
+                `;
+
+                container.appendChild(div);
+            });
+
+            document.querySelectorAll('.save-edit').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    const habit = habits[index];
+
+                    const nameInput = document.querySelector(`.edit-name[data-index="${index}"]`);
+                    const freqSelect = document.querySelector(`.edit-frequency[data-index="${index}"]`);
+                    const timeInput = document.querySelector(`.edit-time[data-index="${index}"]`);
+                    const typeSelect = document.querySelector(`.edit-type[data-index="${index}"]`);
+
+                    const newName = nameInput.value.trim();
+                    if (newName === '') {
+                        alert('El nombre no puede estar vacío.');
+                        return;
+                    }
+
+                    const newTime = parseInt(timeInput.value);
+                    if (isNaN(newTime) || newTime < 1) {
+                        alert('El tiempo debe ser un número mayor a 0.');
+                        return;
+                    }
+
+                    const oldType = habit.type;
+                    habit.name = newName;
+                    habit.frequency = freqSelect.value;
+                    habit.expectedTime = newTime;
+                    habit.type = typeSelect.value;
+
+                    if (oldType === 'time' && habit.type === 'unique') {
+                        if (habit.completedDates && habit.completedDates.length > 0) {
+                            const newLogs = {};
+                            habit.completedDates.forEach(date => {
+                                if (habit.timeLogs && habit.timeLogs[date]) {
+                                    newLogs[date] = habit.timeLogs[date];
+                                } else {
+                                    newLogs[date] = habit.expectedTime;
+                                }
+                            });
+                            habit.timeLogs = newLogs;
+                        } else {
+                            habit.timeLogs = {};
+                        }
+                    }
+
+                    saveAndRender();
+                    switchPanel('habitos');
+                });
+            });
+        }
+
+        // ============================================================
+        // RENDER: ESTADÍSTICAS
+        // ============================================================
+        function renderStats() {
+            const total = habits.length;
+            const today = new Date();
+            const todayStr = getDateStr(today);
+            let completedToday = 0;
+
+            habits.forEach(h => {
+                if (!h.frequency) h.frequency = 'daily';
+                if (isDayValidForFrequency(today, h.frequency)) {
+                    if (h.completedDates && h.completedDates.includes(todayStr)) {
+                        completedToday++;
+                    }
+                }
+            });
+
+            const bestStreak = getGlobalBestStreak();
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-completed-today').textContent = completedToday;
+            document.getElementById('stat-best-streak').textContent = bestStreak;
+
+            // ============================================================
+            // GRÁFICA DE TENDENCIA DIARIA
+            // ============================================================
+            let allDatesWithData = new Set();
+
+            habits.forEach(h => {
+                if (h.completedDates) {
+                    h.completedDates.forEach(date => {
+                        allDatesWithData.add(date);
+                    });
+                }
+                if (h.timeLogs) {
+                    Object.keys(h.timeLogs).forEach(date => {
+                        allDatesWithData.add(date);
+                    });
+                }
+            });
+
+            let sortedDates = Array.from(allDatesWithData).sort((a, b) => new Date(a) - new Date(b));
+
+            if (sortedDates.length === 0) {
+                sortedDates = [todayStr];
+            }
+
+            const firstDate = new Date(sortedDates[0]);
+            const lastDate = new Date(today);
+            const allDays = [];
+            let current = new Date(firstDate);
+            current.setHours(0, 0, 0, 0);
+
+            while (current <= lastDate) {
+                allDays.push(new Date(current));
+                current.setDate(current.getDate() + 1);
+            }
+
+            while (allDays.length > 15) {
+                allDays.shift();
+            }
+
+            const trendLabels = allDays.map(d => {
+                const day = d.getDate();
+                const month = d.getMonth() + 1;
+                return `${day}/${month}`;
+            });
+
+            const trendExpected = allDays.map(d => {
+                const str = getDateStr(d);
+                return getExpectedMinutesForDate(str);
+            });
+
+            const trendReal = allDays.map(d => {
+                const str = getDateStr(d);
+                return getTotalMinutesForDate(str);
+            });
+
+            const ctx0 = document.getElementById('trendChart').getContext('2d');
+            if (trendChartInstance) trendChartInstance.destroy();
+
+            trendChartInstance = new Chart(ctx0, {
+                type: 'line',
+                data: {
+                    labels: trendLabels,
+                    datasets: [{
+                        label: 'Tiempo esperado (min)',
+                        data: trendExpected,
+                        borderColor: 'rgba(96, 165, 250, 1)',
+                        backgroundColor: 'rgba(96, 165, 250, 0.08)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 5,
+                        pointBackgroundColor: 'rgba(96, 165, 250, 1)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3,
+                        spanGaps: false,
+                    }, {
+                        label: 'Tiempo real (min)',
+                        data: trendReal,
+                        borderColor: 'rgba(52, 211, 153, 1)',
+                        backgroundColor: 'rgba(52, 211, 153, 0.08)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 5,
+                        pointBackgroundColor: 'rgba(52, 211, 153, 1)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3,
+                        spanGaps: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + Math.round(context.parsed.y) + ' min';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#6b7280',
+                                font: { size: 9 },
+                                callback: function(value) {
+                                    return value + ' min';
+                                }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 9 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // ============================================================
+            // GRÁFICA 1: Tiempo esperado vs real (semanal)
+            // ============================================================
+            const habitNames = habits.map(h => h.name.length > 12 ? h.name.substring(0, 10) + '…' : h.name);
+            const expectedTimes = habits.map(h => h.expectedTime || 30);
+            const realTimes = habits.map(h => getAverageRealTime(h));
+
+            const ctx1 = document.getElementById('timeComparisonChart').getContext('2d');
+            if (timeComparisonChartInstance) timeComparisonChartInstance.destroy();
+
+            timeComparisonChartInstance = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: habitNames.length > 0 ? habitNames : ['Sin hábitos'],
+                    datasets: [{
+                        label: 'Tiempo esperado (min)',
+                        data: expectedTimes.length > 0 ? expectedTimes : [0],
+                        backgroundColor: 'rgba(96, 165, 250, 0.6)',
+                        borderColor: 'rgba(96, 165, 250, 1)',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                    }, {
+                        label: 'Tiempo real (min)',
+                        data: realTimes.length > 0 ? realTimes : [0],
+                        backgroundColor: 'rgba(52, 211, 153, 0.6)',
+                        borderColor: 'rgba(52, 211, 153, 1)',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#6b7280',
+                                font: { size: 10 }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 9 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // ============================================================
+            // GRÁFICA 2: Minutos totales por día (semanal)
+            // ============================================================
+            const weekDays = getLast7Days();
+            const weekLabels = weekDays.map(d => getShortDayName(d));
+            const weekMinutes = weekDays.map(d => {
+                const str = getDateStr(d);
+                return getTotalMinutesForDate(str);
+            });
+
+            const ctx2 = document.getElementById('weeklyMinutesChart').getContext('2d');
+            if (weeklyMinutesChartInstance) weeklyMinutesChartInstance.destroy();
+
+            weeklyMinutesChartInstance = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: weekLabels,
+                    datasets: [{
+                        label: 'Minutos totales',
+                        data: weekMinutes,
+                        backgroundColor: 'rgba(167, 139, 250, 0.7)',
+                        borderColor: 'rgba(167, 139, 250, 1)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#6b7280',
+                                font: { size: 10 }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // ============================================================
+            // GRÁFICA 3: Hábitos completados por día (semanal)
+            // ============================================================
+            const weekHabitsData = weekDays.map(d => {
+                const str = getDateStr(d);
+                return getCompletedCountForDate(str);
+            });
+
+            const ctx3 = document.getElementById('weeklyHabitsChart').getContext('2d');
+            if (weeklyHabitsChartInstance) weeklyHabitsChartInstance.destroy();
+
+            weeklyHabitsChartInstance = new Chart(ctx3, {
+                type: 'bar',
+                data: {
+                    labels: weekLabels,
+                    datasets: [{
+                        label: 'Hábitos completados',
+                        data: weekHabitsData,
+                        backgroundColor: 'rgba(251, 191, 36, 0.7)',
+                        borderColor: 'rgba(251, 191, 36, 1)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#6b7280',
+                                stepSize: 1,
+                                font: { size: 10 }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // ============================================================
+            // GRÁFICA 4: AVANCE MENSUAL
+            // ============================================================
+            const monthDays = getLast30Days();
+            const monthLabels = monthDays.map(d => `${d.getDate()}/${d.getMonth()+1}`);
+            const monthExpected = monthDays.map(d => {
+                const str = getDateStr(d);
+                return getExpectedMinutesForDate(str);
+            });
+            const monthReal = monthDays.map(d => {
+                const str = getDateStr(d);
+                return getTotalMinutesForDate(str);
+            });
+
+            const ctx4 = document.getElementById('monthlyChart').getContext('2d');
+            if (monthlyChartInstance) monthlyChartInstance.destroy();
+
+            const monthLabelsFiltered = monthLabels.map((label, i) => i % 5 === 0 ? label : '');
+
+            monthlyChartInstance = new Chart(ctx4, {
+                type: 'line',
+                data: {
+                    labels: monthLabelsFiltered,
+                    datasets: [{
+                        label: 'Tiempo esperado (min)',
+                        data: monthExpected,
+                        borderColor: 'rgba(96, 165, 250, 1)',
+                        backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 1,
+                        borderWidth: 2,
+                    }, {
+                        label: 'Tiempo real (min)',
+                        data: monthReal,
+                        borderColor: 'rgba(52, 211, 153, 1)',
+                        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 1,
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#6b7280',
+                                font: { size: 9 }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 8 },
+                                maxTicksLimit: 15
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // ============================================================
+            // GRÁFICA 5: AVANCE ANUAL
+            // ============================================================
+            const yearMonths = getLast12Months();
+            const yearLabels = yearMonths.map(d => getMonthName(d));
+            const yearExpected = yearMonths.map(month => {
+                const year = month.getFullYear();
+                const m = month.getMonth();
+                const daysInMonth = new Date(year, m + 1, 0).getDate();
+                let total = 0;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const date = new Date(year, m, d);
+                    const str = getDateStr(date);
+                    total += getExpectedMinutesForDate(str);
+                }
+                return total;
+            });
+
+            const yearReal = yearMonths.map(month => {
+                const year = month.getFullYear();
+                const m = month.getMonth();
+                const daysInMonth = new Date(year, m + 1, 0).getDate();
+                let total = 0;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const date = new Date(year, m, d);
+                    const str = getDateStr(date);
+                    total += getTotalMinutesForDate(str);
+                }
+                return total;
+            });
+
+            const ctx5 = document.getElementById('yearlyChart').getContext('2d');
+            if (yearlyChartInstance) yearlyChartInstance.destroy();
+
+            yearlyChartInstance = new Chart(ctx5, {
+                type: 'bar',
+                data: {
+                    labels: yearLabels,
+                    datasets: [{
+                        label: 'Tiempo esperado (min)',
+                        data: yearExpected,
+                        backgroundColor: 'rgba(96, 165, 250, 0.5)',
+                        borderColor: 'rgba(96, 165, 250, 1)',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                    }, {
+                        label: 'Tiempo real (min)',
+                        data: yearReal,
+                        backgroundColor: 'rgba(52, 211, 153, 0.5)',
+                        borderColor: 'rgba(52, 211, 153, 1)',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#6b7280',
+                                font: { size: 9 }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 9 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ============================================================
+        // GUARDAR Y RENDERIZAR
+        // ============================================================
+        function saveAndRender() {
+            localStorage.setItem('focusHabits', JSON.stringify(habits));
+            renderHabits();
+            renderEditPanel();
+            renderStats();
+            updateBadges();
+            scheduleNotifications();
+            setTimeout(() => {
+                checkAndBackup();
+            }, 2000);
+        }
+
+        function updateBadges() {
+            document.getElementById('habit-count-badge').textContent = `${habits.length} hábitos`;
+            document.getElementById('menu-habit-count').textContent = habits.length;
+        }
+
+        function switchPanel(panelId) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+
+            const targetPanel = document.getElementById(`panel-${panelId}`);
+            if (targetPanel) targetPanel.classList.add('active');
+
+            const targetBtn = document.querySelector(`.menu-btn[data-panel="${panelId}"]`);
+            if (targetBtn) targetBtn.classList.add('active');
+
+            if (panelId === 'habitos') {
+                renderHabits();
+                updateProgressRing();
+            }
+            if (panelId === 'editar') renderEditPanel();
+            if (panelId === 'estadisticas') renderStats();
+            if (panelId === 'ajustes') {
+                loadSettings();
+            }
+        }
+
+        // ============================================================
+        // GUARDAR NUEVO HÁBITO
+        // ============================================================
+        function saveNewHabit() {
+            const nameInput = document.getElementById('habit-name');
+            const timeInput = document.getElementById('habit-expected-time');
+            const name = nameInput.value.trim();
+            const expectedTime = parseInt(timeInput.value);
+
+            if (name === '') {
+                alert('Por favor, escribe un nombre para el hábito.');
+                nameInput.focus();
+                return;
+            }
+
+            if (isNaN(expectedTime) || expectedTime < 1) {
+                alert('Por favor, ingresa un tiempo esperado válido (mínimo 1 minuto).');
+                timeInput.focus();
+                return;
+            }
+
+            if (habits.some(h => h.name.toLowerCase() === name.toLowerCase())) {
+                alert(`Ya existe un hábito con el nombre "${name}". Por favor, usa otro nombre.`);
+                nameInput.focus();
+                nameInput.select();
+                return;
+            }
+
+            const newHabit = {
+                id: generateId(),
+                name: name,
+                frequency: selectedFrequency,
+                type: selectedType,
+                expectedTime: expectedTime,
+                completedDates: [],
+                timeLogs: {}
+            };
+
+            habits.push(newHabit);
+            nameInput.value = '';
+            timeInput.value = '30';
+
+            saveAndRender();
+
+            const btn = document.getElementById('save-habit-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '✅ ¡Guardado!';
+            btn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '';
+            }, 1500);
+
+            setTimeout(() => {
+                switchPanel('habitos');
+            }, 500);
+        }
+
+        // ============================================================
+        // AJUSTES
+        // ============================================================
+        function loadSettings() {
+            const toggle = document.getElementById('notifications-toggle');
+            if (toggle) {
+                toggle.checked = notificationsConfig.enabled;
+            }
+
+            document.querySelectorAll('.day-btn').forEach(btn => {
+                const day = parseInt(btn.dataset.day);
+                if (notificationsConfig.days.includes(day)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            document.getElementById('time-morning').value = notificationsConfig.times.morning || '10:00';
+            document.getElementById('time-afternoon').value = notificationsConfig.times.afternoon || '15:00';
+            document.getElementById('time-night').value = notificationsConfig.times.night || '21:30';
+        }
+
+        function saveSettings() {
+            const enabled = document.getElementById('notifications-toggle').checked;
+
+            const days = [];
+            document.querySelectorAll('.day-btn.active').forEach(btn => {
+                days.push(parseInt(btn.dataset.day));
+            });
+
+            const times = {
+                morning: document.getElementById('time-morning').value || '10:00',
+                afternoon: document.getElementById('time-afternoon').value || '15:00',
+                night: document.getElementById('time-night').value || '21:30'
+            };
+
+            notificationsConfig = {
+                enabled: enabled,
+                days: days.length > 0 ? days : [1, 2, 3, 4, 5],
+                times: times
+            };
+
+            localStorage.setItem('notificationsConfig', JSON.stringify(notificationsConfig));
+
+            if (window._notificationTimeouts) {
+                window._notificationTimeouts.forEach(t => clearTimeout(t));
+                window._notificationTimeouts = [];
+            }
+            scheduleNotifications();
+
+            const btn = document.getElementById('save-notifications-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '✅ ¡Configuración guardada!';
+            btn.style.background = 'rgba(34, 197, 94, 0.3)';
+            btn.style.color = '#4ade80';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '';
+                btn.style.color = '';
+            }, 2000);
+
+            if (enabled) {
+                requestNotificationPermission();
+            }
+        }
+
+        // ============================================================
+        // TOGGLE RÁPIDO DE NOTIFICACIONES
+        // ============================================================
+        function toggleNotifications(e) {
+            const enabled = e.target.checked;
+
+            notificationsConfig.enabled = enabled;
+            localStorage.setItem('notificationsConfig', JSON.stringify(notificationsConfig));
+
+            if (window._notificationTimeouts) {
+                window._notificationTimeouts.forEach(t => clearTimeout(t));
+                window._notificationTimeouts = [];
+            }
+
+            if (enabled) {
+                scheduleNotifications();
+                requestNotificationPermission();
+                showToggleFeedback('🔔 Notificaciones activadas');
+            } else {
+                showToggleFeedback('🔕 Notificaciones desactivadas');
+            }
+        }
+
+        function showToggleFeedback(message) {
+            const btn = document.getElementById('save-notifications-btn');
+            if (!btn) return;
+            const originalText = btn.textContent;
+            btn.textContent = message;
+            btn.style.background = 'rgba(99, 102, 241, 0.3)';
+            btn.style.color = '#a78bfa';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '';
+                btn.style.color = '';
+            }, 2000);
+        }
+
+        // ============================================================
+        // EVENTOS E INICIALIZACIÓN
+        // ============================================================
+
+        document.querySelectorAll('.menu-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                switchPanel(this.dataset.panel);
+            });
+        });
+
+        document.querySelectorAll('.freq-btn-form').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.freq-btn-form').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                selectedFrequency = this.dataset.freq;
+            });
+        });
+
+        document.querySelectorAll('.type-btn-form').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.type-btn-form').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                selectedType = this.dataset.type;
+                const timeGroup = document.getElementById('time-input-group');
+                if (selectedType === 'unique') {
+                    timeGroup.style.display = 'none';
+                } else {
+                    timeGroup.style.display = 'block';
+                }
+            });
+        });
+
+        document.getElementById('save-habit-btn').addEventListener('click', saveNewHabit);
+
+        document.getElementById('habit-name').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('habit-expected-time').focus();
+            }
+        });
+
+        document.getElementById('habit-expected-time').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('save-habit-btn').click();
+            }
+        });
+
+        // ============================================================
+        // EVENTOS DE AJUSTES
+        // ============================================================
+
+        document.querySelectorAll('.day-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+
+        document.getElementById('save-notifications-btn').addEventListener('click', saveSettings);
+        document.getElementById('test-notification-btn').addEventListener('click', testNotification);
+
+        const toggleInput = document.getElementById('notifications-toggle');
+        if (toggleInput) {
+            toggleInput.addEventListener('change', toggleNotifications);
+            toggleInput.addEventListener('click', function(e) {
+                toggleNotifications(e);
+            });
+        }
+
+        // ============================================================
+        // INICIALIZAR
+        // ============================================================
+        habits.forEach(h => {
+            if (!h.id) h.id = generateId();
+            if (!h.timeLogs) h.timeLogs = {};
+            if (!h.expectedTime) h.expectedTime = 30;
+            if (!h.frequency) h.frequency = 'daily';
+            if (!h.type) h.type = 'time';
+        });
+
+        requestNotificationPermission();
+
+        renderHabits();
+        renderEditPanel();
+        renderStats();
+        updateBadges();
+
+        // Abrir en el panel "Hábitos" por defecto
+        switchPanel('habitos');
+
+        setTimeout(() => {
+            scheduleNotifications();
+            checkAndBackup();
+        }, 1500);
+
+        // Registrar Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(() => console.log('✅ Service Worker registrado'))
+                .catch((err) => console.log('❌ Error al registrar Service Worker:', err));
+        }
+
+        console.log('🎯 Focus Habit Tracker - PWA con respaldo automático cada 15 días');
+        console.log('📁 Los respaldos se guardan en la carpeta de descargas');
+        console.log('👆 Arrastra los hábitos con el dedo para reordenarlos');
+    </script>
+</body>
+</html>
