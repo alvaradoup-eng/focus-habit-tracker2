@@ -375,7 +375,7 @@
         .progress-stats .dot.time { background: #4ade80; }
 
         /* ======================================== */
-        /* HÁBITOS - DRAG & DROP */
+        /* HÁBITOS - CON LONG PRESS (2 SEGUNDOS) */
         /* ======================================== */
         #habits-container {
             margin: 12px 0 16px 0;
@@ -385,6 +385,7 @@
             max-height: 350px;
             overflow-y: auto;
             touch-action: pan-y;
+            -webkit-overflow-scrolling: touch;
         }
 
         .habit-item {
@@ -398,13 +399,9 @@
             border: 1px solid rgba(255, 255, 255, 0.04);
             flex-wrap: wrap;
             gap: 8px;
-            touch-action: none;
-            cursor: grab;
+            touch-action: pan-y;
+            cursor: default;
             position: relative;
-        }
-
-        .habit-item:active {
-            cursor: grabbing;
         }
 
         .habit-item.dragging {
@@ -426,25 +423,41 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
+        /* Indicador de long press */
         .habit-item .drag-handle {
             color: #4b5563;
             font-size: 0.8rem;
             padding: 4px 8px 4px 4px;
-            cursor: grab;
-            touch-action: none;
-            opacity: 0.5;
+            opacity: 0.4;
             transition: opacity 0.2s;
             display: flex;
             align-items: center;
+            pointer-events: none;
         }
 
-        .habit-item:hover .drag-handle {
+        .habit-item .long-press-indicator {
+            position: absolute;
+            top: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(99, 102, 241, 0.3);
+            color: #a78bfa;
+            font-size: 0.55rem;
+            padding: 2px 12px;
+            border-radius: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .habit-item.long-press-active .long-press-indicator {
             opacity: 1;
-            color: #9ca3af;
         }
 
-        .habit-item:active .drag-handle {
-            cursor: grabbing;
+        .habit-item.long-press-active {
+            border-color: #818cf8;
+            background: rgba(99, 102, 241, 0.08);
         }
 
         /* ======================================== */
@@ -526,6 +539,8 @@
             gap: 6px;
             flex-wrap: wrap;
             pointer-events: auto;
+            z-index: 2;
+            position: relative;
         }
 
         .habit-check {
@@ -1186,6 +1201,7 @@
             .app-name { font-size: 1.3rem; }
             .spinner { width: 48px; height: 48px; }
             .habit-item .drag-handle { font-size: 0.7rem; padding: 2px 6px 2px 2px; }
+            .habit-item .long-press-indicator { font-size: 0.5rem; padding: 1px 8px; }
         }
     </style>
 </head>
@@ -1316,7 +1332,7 @@
 
             <div style="margin-top:10px; padding:10px; background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.03);">
                 <p style="font-size:0.7rem; color:#6b7280;">
-                    👆 <strong>Arrastra</strong> los hábitos con el dedo para reordenarlos.
+                    👆 <strong>Mantén presionado</strong> un hábito por 2 segundos para reordenarlo.
                     <br>✅ Marca el círculo para completar el hábito hoy.
                     <br>⏱️ Los hábitos <strong>"Con tiempo"</strong> permiten registrar minutos.
                     <br>⭐ Los hábitos <strong>"Único"</strong> se marcan como hechos (100%).
@@ -1504,18 +1520,21 @@
         };
 
         // ============================================================
-        // DRAG & DROP - Variables globales
+        // DRAG & DROP - Variables globales (LONG PRESS 2 SEGUNDOS)
         // ============================================================
-        let dragData = {
+        let longPressTimers = {};
+        let dragState = {
+            isDragging: false,
             draggedIndex: null,
             draggedElement: null,
-            dragOverIndex: null,
-            touchStartX: 0,
-            touchStartY: 0,
-            isDragging: false,
-            initialTouchY: 0,
-            currentTouchY: 0
+            clone: null,
+            startY: 0,
+            currentY: 0,
+            hasMoved: false,
+            touchId: null
         };
+
+        const LONG_PRESS_DELAY = 2000; // 2 segundos
 
         // ============================================================
         // RESPALDO AUTOMÁTICO CADA 15 DÍAS
@@ -1810,7 +1829,7 @@
         }
 
         // ============================================================
-        // DRAG & DROP - FUNCIONES
+        // DRAG & DROP - FUNCIONES (LONG PRESS)
         // ============================================================
         function swapHabits(fromIndex, toIndex) {
             if (fromIndex === toIndex) return;
@@ -1818,6 +1837,128 @@
             habits[fromIndex] = habits[toIndex];
             habits[toIndex] = temp;
             saveAndRender();
+        }
+
+        function startDrag(element, index, touchY) {
+            const rect = element.getBoundingClientRect();
+            
+            // Crear clon para feedback visual
+            dragState.clone = element.cloneNode(true);
+            dragState.clone.style.position = 'fixed';
+            dragState.clone.style.width = rect.width + 'px';
+            dragState.clone.style.pointerEvents = 'none';
+            dragState.clone.style.opacity = '0.85';
+            dragState.clone.style.transform = 'scale(1.05)';
+            dragState.clone.style.zIndex = '9999';
+            dragState.clone.style.borderColor = '#818cf8';
+            dragState.clone.style.boxShadow = '0 0 40px rgba(99,102,241,0.4)';
+            dragState.clone.style.background = 'rgba(30,30,47,0.95)';
+            dragState.clone.style.borderRadius = '14px';
+            dragState.clone.style.padding = '12px 16px';
+            dragState.clone.id = 'drag-clone';
+            document.body.appendChild(dragState.clone);
+
+            // Posicionar clon
+            const containerRect = document.getElementById('habits-container').getBoundingClientRect();
+            dragState.clone.style.left = (rect.left - 8) + 'px';
+            dragState.clone.style.top = (touchY - rect.height / 2) + 'px';
+
+            // Marcar elemento original
+            element.classList.add('dragging');
+            dragState.isDragging = true;
+            dragState.draggedIndex = index;
+            dragState.draggedElement = element;
+            dragState.startY = touchY;
+            dragState.hasMoved = false;
+
+            // Vibración (si el dispositivo lo soporta)
+            if (navigator.vibrate) {
+                navigator.vibrate(30);
+            }
+
+            // Mostrar indicador visual
+            const indicator = element.querySelector('.long-press-indicator');
+            if (indicator) {
+                indicator.textContent = '✋ Arrastrando...';
+                indicator.style.opacity = '1';
+                indicator.style.background = 'rgba(99, 102, 241, 0.3)';
+            }
+        }
+
+        function moveDrag(touchY) {
+            if (!dragState.isDragging || !dragState.clone) return;
+
+            // Mover clon
+            const rect = dragState.draggedElement.getBoundingClientRect();
+            dragState.clone.style.top = (touchY - rect.height / 2) + 'px';
+
+            // Determinar sobre qué elemento estamos
+            const elements = document.elementsFromPoint(
+                window.innerWidth / 2, 
+                touchY
+            );
+            
+            let targetItem = null;
+            for (let el of elements) {
+                if (el.classList && el.classList.contains('habit-item') && el !== dragState.draggedElement) {
+                    targetItem = el;
+                    break;
+                }
+            }
+
+            // Limpiar drag-over previos
+            document.querySelectorAll('#habits-container .habit-item').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+
+            if (targetItem) {
+                const targetIndex = parseInt(targetItem.dataset.index);
+                if (dragState.draggedIndex !== targetIndex) {
+                    targetItem.classList.add('drag-over');
+                    dragState.hasMoved = true;
+                }
+            }
+        }
+
+        function endDrag() {
+            // Remover clon
+            if (dragState.clone) {
+                dragState.clone.remove();
+                dragState.clone = null;
+            }
+
+            // Remover estilos
+            if (dragState.draggedElement) {
+                dragState.draggedElement.classList.remove('dragging');
+                const indicator = dragState.draggedElement.querySelector('.long-press-indicator');
+                if (indicator) {
+                    indicator.textContent = '⏳ Mantén presionado...';
+                    indicator.style.opacity = '0';
+                }
+            }
+
+            document.querySelectorAll('#habits-container .habit-item').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+
+            // Si hubo movimiento y hay un índice destino, intercambiar
+            if (dragState.hasMoved && dragState.draggedIndex !== null) {
+                // Encontrar el índice destino (el elemento con drag-over)
+                const targetEl = document.querySelector('#habits-container .habit-item.drag-over');
+                if (targetEl) {
+                    const toIndex = parseInt(targetEl.dataset.index);
+                    if (dragState.draggedIndex !== toIndex) {
+                        swapHabits(dragState.draggedIndex, toIndex);
+                    }
+                }
+            }
+
+            // Reset
+            dragState.isDragging = false;
+            dragState.draggedIndex = null;
+            dragState.draggedElement = null;
+            dragState.hasMoved = false;
+            dragState.startY = 0;
         }
 
         // ============================================================
@@ -2049,7 +2190,7 @@
         }
 
         // ============================================================
-        // RENDER: HÁBITOS (con Drag & Drop)
+        // RENDER: HÁBITOS (con Long Press)
         // ============================================================
         function renderHabits() {
             const container = document.getElementById('habits-container');
@@ -2079,7 +2220,6 @@
 
                 const div = document.createElement('div');
                 div.className = 'habit-item';
-                div.setAttribute('draggable', 'true');
                 div.dataset.index = index;
 
                 const isUnique = habit.type === 'unique';
@@ -2117,6 +2257,7 @@
                         </button>
                         <button class="habit-delete" data-index="${index}">✕</button>
                     </div>
+                    <div class="long-press-indicator">⏳ Mantén presionado...</div>
                 `;
 
                 container.appendChild(div);
@@ -2125,75 +2266,15 @@
             document.getElementById('habitos-counter').textContent = `${habits.length} activos`;
 
             // ============================================================
-            // EVENTOS: DRAG & DROP (HTML5 nativo + soporte táctil)
+            // EVENTOS: LONG PRESS (2 segundos) + DRAG & DROP
             // ============================================================
-
-            // --- EVENTOS DE ARRASTRE (HTML5) ---
-            container.querySelectorAll('.habit-item').forEach(item => {
-                item.addEventListener('dragstart', function(e) {
-                    const index = parseInt(this.dataset.index);
-                    dragData.draggedIndex = index;
-                    dragData.draggedElement = this;
-                    this.classList.add('dragging');
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', index);
-                });
-
-                item.addEventListener('dragend', function(e) {
-                    this.classList.remove('dragging');
-                    container.querySelectorAll('.habit-item').forEach(el => {
-                        el.classList.remove('drag-over');
-                    });
-                    dragData.draggedIndex = null;
-                    dragData.draggedElement = null;
-                });
-
-                item.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    const targetIndex = parseInt(this.dataset.index);
-                    if (dragData.draggedIndex !== null && dragData.draggedIndex !== targetIndex) {
-                        container.querySelectorAll('.habit-item').forEach(el => {
-                            el.classList.remove('drag-over');
-                        });
-                        this.classList.add('drag-over');
-                        dragData.dragOverIndex = targetIndex;
-                    }
-                });
-
-                item.addEventListener('dragleave', function(e) {
-                    this.classList.remove('drag-over');
-                });
-
-                item.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    this.classList.remove('drag-over');
-                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                    const toIndex = parseInt(this.dataset.index);
-                    if (fromIndex !== toIndex) {
-                        swapHabits(fromIndex, toIndex);
-                    }
-                    dragData.draggedIndex = null;
-                    dragData.draggedElement = null;
-                });
-            });
-
-            // ============================================================
-            // EVENTOS TÁCTILES (para móviles)
-            // ============================================================
-            let touchDragData = {
-                startIndex: null,
-                currentIndex: null,
-                element: null,
-                startY: 0,
-                isDragging: false,
-                clone: null
-            };
 
             container.querySelectorAll('.habit-item').forEach(item => {
-                // Touch start
+                const index = parseInt(item.dataset.index);
+
+                // --- LONG PRESS: Iniciar con touchstart ---
                 item.addEventListener('touchstart', function(e) {
-                    // Solo iniciar arrastre si no se tocó un botón o input
+                    // No iniciar long press si se tocó un botón o input
                     if (e.target.closest('.habit-check') || 
                         e.target.closest('.habit-delete') || 
                         e.target.closest('.save-time') || 
@@ -2202,101 +2283,84 @@
                     }
 
                     const touch = e.touches[0];
-                    touchDragData.startIndex = parseInt(this.dataset.index);
-                    touchDragData.element = this;
-                    touchDragData.startY = touch.clientY;
-                    touchDragData.isDragging = false;
-                    touchDragData.currentIndex = touchDragData.startIndex;
+                    dragState.touchId = touch.identifier;
 
-                    // Crear un clon para feedback visual
-                    const rect = this.getBoundingClientRect();
-                    touchDragData.clone = this.cloneNode(true);
-                    touchDragData.clone.style.position = 'fixed';
-                    touchDragData.clone.style.width = rect.width + 'px';
-                    touchDragData.clone.style.pointerEvents = 'none';
-                    touchDragData.clone.style.opacity = '0.8';
-                    touchDragData.clone.style.transform = 'scale(1.05)';
-                    touchDragData.clone.style.zIndex = '9999';
-                    touchDragData.clone.style.borderColor = '#818cf8';
-                    touchDragData.clone.style.boxShadow = '0 0 40px rgba(99,102,241,0.4)';
-                    touchDragData.clone.style.background = 'rgba(30,30,47,0.95)';
-                    touchDragData.clone.id = 'touch-clone';
-                    document.body.appendChild(touchDragData.clone);
+                    // Iniciar timer de long press
+                    const timerId = setTimeout(() => {
+                        // Iniciar arrastre después de 2 segundos
+                        if (!dragState.isDragging) {
+                            startDrag(this, index, touch.clientY);
+                            // Mostrar indicador
+                            const indicator = this.querySelector('.long-press-indicator');
+                            if (indicator) {
+                                indicator.textContent = '✋ Arrastrando...';
+                                indicator.style.opacity = '1';
+                                indicator.style.background = 'rgba(99, 102, 241, 0.3)';
+                            }
+                            this.classList.add('long-press-active');
+                        }
+                    }, LONG_PRESS_DELAY);
 
-                    // Posicionar el clon
-                    touchDragData.clone.style.left = (rect.left - 8) + 'px';
-                    touchDragData.clone.style.top = (touch.clientY - rect.height / 2) + 'px';
-
-                    // Aplicar estilo de arrastre al original
-                    this.classList.add('dragging');
+                    // Guardar timer para cancelar
+                    longPressTimers[index] = timerId;
                 }, { passive: true });
 
-                // Touch move
+                // --- MOVER: touchmove ---
                 item.addEventListener('touchmove', function(e) {
-                    if (touchDragData.startIndex === null) return;
-                    e.preventDefault();
-
-                    const touch = e.touches[0];
-                    touchDragData.isDragging = true;
-
-                    // Mover el clon
-                    if (touchDragData.clone) {
-                        const rect = this.getBoundingClientRect();
-                        touchDragData.clone.style.top = (touch.clientY - rect.height / 2) + 'px';
-                    }
-
-                    // Determinar sobre qué elemento estamos
-                    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
-                    let targetItem = null;
-                    for (let el of elements) {
-                        if (el.classList && el.classList.contains('habit-item') && el !== this) {
-                            targetItem = el;
-                            break;
+                    // Cancelar long press si se movió mucho antes de 2 segundos
+                    if (!dragState.isDragging && longPressTimers[index]) {
+                        const touch = e.touches[0];
+                        if (dragState.touchId === touch.identifier) {
+                            // Si se movió más de 10px, cancelar el long press
+                            if (dragState.startY === 0) {
+                                // Primera vez, guardar posición inicial
+                                dragState.startY = touch.clientY;
+                            } else if (Math.abs(touch.clientY - dragState.startY) > 10) {
+                                clearTimeout(longPressTimers[index]);
+                                delete longPressTimers[index];
+                                dragState.startY = 0;
+                            }
                         }
                     }
 
-                    // Limpiar drag-over previos
-                    container.querySelectorAll('.habit-item').forEach(el => {
-                        el.classList.remove('drag-over');
-                    });
-
-                    if (targetItem) {
-                        const targetIndex = parseInt(targetItem.dataset.index);
-                        if (touchDragData.currentIndex !== targetIndex) {
-                            touchDragData.currentIndex = targetIndex;
-                            targetItem.classList.add('drag-over');
-                        }
+                    // Si está arrastrando, mover el clon
+                    if (dragState.isDragging && dragState.touchId === e.touches[0].identifier) {
+                        e.preventDefault();
+                        moveDrag(e.touches[0].clientY);
                     }
                 }, { passive: false });
 
-                // Touch end
+                // --- FIN: touchend ---
                 item.addEventListener('touchend', function(e) {
-                    if (touchDragData.startIndex === null) return;
-
-                    // Remover clon
-                    if (touchDragData.clone) {
-                        touchDragData.clone.remove();
-                        touchDragData.clone = null;
+                    // Cancelar timer de long press
+                    if (longPressTimers[index]) {
+                        clearTimeout(longPressTimers[index]);
+                        delete longPressTimers[index];
                     }
 
-                    // Remover estilos
-                    this.classList.remove('dragging');
-                    container.querySelectorAll('.habit-item').forEach(el => {
-                        el.classList.remove('drag-over');
-                    });
-
-                    // Si hubo arrastre y el índice cambió, intercambiar
-                    if (touchDragData.isDragging && 
-                        touchDragData.currentIndex !== null && 
-                        touchDragData.startIndex !== touchDragData.currentIndex) {
-                        swapHabits(touchDragData.startIndex, touchDragData.currentIndex);
+                    // Si estaba arrastrando, finalizar
+                    if (dragState.isDragging) {
+                        endDrag();
+                        this.classList.remove('long-press-active');
                     }
 
                     // Reset
-                    touchDragData.startIndex = null;
-                    touchDragData.currentIndex = null;
-                    touchDragData.element = null;
-                    touchDragData.isDragging = false;
+                    dragState.startY = 0;
+                    dragState.touchId = null;
+                }, { passive: true });
+
+                // --- CANCELAR: touchcancel ---
+                item.addEventListener('touchcancel', function(e) {
+                    if (longPressTimers[index]) {
+                        clearTimeout(longPressTimers[index]);
+                        delete longPressTimers[index];
+                    }
+                    if (dragState.isDragging) {
+                        endDrag();
+                        this.classList.remove('long-press-active');
+                    }
+                    dragState.startY = 0;
+                    dragState.touchId = null;
                 }, { passive: true });
             });
 
@@ -2382,7 +2446,7 @@
         }
 
         // ============================================================
-        // RENDER: EDITAR (CORREGIDO - CAMPOS BIEN DISTRIBUIDOS)
+        // RENDER: EDITAR
         // ============================================================
         function renderEditPanel() {
             const container = document.getElementById('edit-list-container');
@@ -3288,7 +3352,7 @@
 
         console.log('🎯 Focus Habit Tracker - PWA con respaldo automático cada 15 días');
         console.log('📁 Los respaldos se guardan en la carpeta de descargas');
-        console.log('👆 Arrastra los hábitos con el dedo para reordenarlos');
+        console.log('👆 Mantén presionado un hábito por 2 segundos para reordenarlo');
     </script>
 </body>
 </html>
