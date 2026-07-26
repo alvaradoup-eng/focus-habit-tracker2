@@ -386,6 +386,7 @@
             overflow-y: auto;
             touch-action: pan-y;
             -webkit-overflow-scrolling: touch;
+            position: relative;
         }
 
         .habit-item {
@@ -402,6 +403,7 @@
             touch-action: pan-y;
             cursor: default;
             position: relative;
+            min-height: 70px;
         }
 
         .habit-item.dragging {
@@ -1523,17 +1525,17 @@
         // ============================================================
         // DRAG & DROP - Variables globales (LONG PRESS 2 SEGUNDOS)
         // ============================================================
-        let longPressTimers = {};
         let dragState = {
             isDragging: false,
             draggedIndex: null,
             draggedElement: null,
             clone: null,
             startY: 0,
-            currentY: 0,
             hasMoved: false,
             touchId: null,
-            targetIndex: null
+            targetIndex: null,
+            longPressTimer: null,
+            isLongPressActive: false
         };
 
         const LONG_PRESS_DELAY = 2000; // 2 segundos
@@ -1849,7 +1851,7 @@
             dragState.clone.style.position = 'fixed';
             dragState.clone.style.width = rect.width + 'px';
             dragState.clone.style.pointerEvents = 'none';
-            dragState.clone.style.opacity = '0.85';
+            dragState.clone.style.opacity = '0.9';
             dragState.clone.style.transform = 'scale(1.05)';
             dragState.clone.style.zIndex = '9999';
             dragState.clone.style.borderColor = '#818cf8';
@@ -1895,17 +1897,13 @@
             const rect = dragState.draggedElement.getBoundingClientRect();
             dragState.clone.style.top = (touchY - rect.height / 2) + 'px';
 
-            // Determinar sobre qué elemento estamos usando la posición Y
+            // Determinar sobre qué elemento estamos
             const container = document.getElementById('habits-container');
             const items = container.querySelectorAll('.habit-item');
             let targetItem = null;
             let targetIndex = null;
-
-            // Obtener la posición del contenedor
-            const containerRect = container.getBoundingClientRect();
-            
-            // Encontrar el elemento más cercano a la posición del dedo
             let minDistance = Infinity;
+
             items.forEach(item => {
                 if (item === dragState.draggedElement) return;
                 const rect2 = item.getBoundingClientRect();
@@ -1923,7 +1921,7 @@
                 el.classList.remove('drag-over');
             });
 
-            // Si hay un objetivo válido y está cerca (dentro de 50px)
+            // Si hay un objetivo válido
             if (targetItem && minDistance < 80) {
                 targetItem.classList.add('drag-over');
                 dragState.targetIndex = targetIndex;
@@ -1969,6 +1967,15 @@
             dragState.hasMoved = false;
             dragState.startY = 0;
             dragState.targetIndex = null;
+            dragState.isLongPressActive = false;
+        }
+
+        function cancelLongPress() {
+            if (dragState.longPressTimer) {
+                clearTimeout(dragState.longPressTimer);
+                dragState.longPressTimer = null;
+            }
+            dragState.isLongPressActive = false;
         }
 
         // ============================================================
@@ -2200,7 +2207,7 @@
         }
 
         // ============================================================
-        // RENDER: HÁBITOS (con Long Press)
+        // RENDER: HÁBITOS (con Long Press CORREGIDO)
         // ============================================================
         function renderHabits() {
             const container = document.getElementById('habits-container');
@@ -2276,14 +2283,24 @@
             document.getElementById('habitos-counter').textContent = `${habits.length} activos`;
 
             // ============================================================
-            // EVENTOS: LONG PRESS (2 segundos) + DRAG & DROP CORREGIDO
+            // EVENTOS: LONG PRESS (2 segundos) - CORREGIDO
             // ============================================================
+
+            // Remover event listeners previos si existían (usamos una nueva variable para evitar duplicados)
+            if (window._habitEventListeners) {
+                window._habitEventListeners.forEach(({ element, events }) => {
+                    events.forEach(({ type, handler }) => {
+                        element.removeEventListener(type, handler);
+                    });
+                });
+            }
+            window._habitEventListeners = [];
 
             container.querySelectorAll('.habit-item').forEach(item => {
                 const index = parseInt(item.dataset.index);
 
-                // --- LONG PRESS: Iniciar con touchstart ---
-                item.addEventListener('touchstart', function(e) {
+                // --- LONG PRESS: touchstart ---
+                const touchStartHandler = function(e) {
                     // No iniciar long press si se tocó un botón o input
                     if (e.target.closest('.habit-check') || 
                         e.target.closest('.habit-delete') || 
@@ -2292,50 +2309,53 @@
                         return;
                     }
 
+                    // Cancelar cualquier long press anterior
+                    cancelLongPress();
+
                     const touch = e.touches[0];
                     dragState.touchId = touch.identifier;
                     dragState.startY = touch.clientY;
+                    dragState.isLongPressActive = true;
 
                     // Iniciar timer de long press
-                    const timerId = setTimeout(() => {
+                    dragState.longPressTimer = setTimeout(() => {
                         // Iniciar arrastre después de 2 segundos
-                        if (!dragState.isDragging) {
-                            startDrag(this, index, touch.clientY);
+                        if (dragState.isLongPressActive && !dragState.isDragging) {
+                            startDrag(item, index, touch.clientY);
                         }
                     }, LONG_PRESS_DELAY);
-
-                    // Guardar timer para cancelar
-                    longPressTimers[index] = timerId;
-                }, { passive: true });
+                };
 
                 // --- MOVER: touchmove ---
-                item.addEventListener('touchmove', function(e) {
+                const touchMoveHandler = function(e) {
                     const touch = e.touches[0];
                     
+                    // Si no hay long press activo, permitir scroll normal
+                    if (!dragState.isLongPressActive && !dragState.isDragging) {
+                        return;
+                    }
+
                     // Cancelar long press si se movió mucho antes de 2 segundos
-                    if (!dragState.isDragging && longPressTimers[index]) {
-                        if (dragState.touchId === touch.identifier) {
-                            // Si se movió más de 10px, cancelar el long press
-                            if (Math.abs(touch.clientY - dragState.startY) > 15) {
-                                clearTimeout(longPressTimers[index]);
-                                delete longPressTimers[index];
-                            }
+                    if (dragState.isLongPressActive && !dragState.isDragging) {
+                        if (Math.abs(touch.clientY - dragState.startY) > 15) {
+                            cancelLongPress();
+                            dragState.startY = 0;
+                            return;
                         }
                     }
 
-                    // Si está arrastrando, mover el clon
+                    // Si está arrastrando, mover el clon y prevenir scroll
                     if (dragState.isDragging && dragState.touchId === touch.identifier) {
                         e.preventDefault();
                         moveDrag(touch.clientY);
                     }
-                }, { passive: false });
+                };
 
                 // --- FIN: touchend ---
-                item.addEventListener('touchend', function(e) {
-                    // Cancelar timer de long press
-                    if (longPressTimers[index]) {
-                        clearTimeout(longPressTimers[index]);
-                        delete longPressTimers[index];
+                const touchEndHandler = function(e) {
+                    // Cancelar long press
+                    if (dragState.isLongPressActive) {
+                        cancelLongPress();
                     }
 
                     // Si estaba arrastrando, finalizar
@@ -2346,20 +2366,38 @@
                     // Reset
                     dragState.startY = 0;
                     dragState.touchId = null;
-                }, { passive: true });
+                    dragState.isLongPressActive = false;
+                };
 
                 // --- CANCELAR: touchcancel ---
-                item.addEventListener('touchcancel', function(e) {
-                    if (longPressTimers[index]) {
-                        clearTimeout(longPressTimers[index]);
-                        delete longPressTimers[index];
+                const touchCancelHandler = function(e) {
+                    if (dragState.isLongPressActive) {
+                        cancelLongPress();
                     }
                     if (dragState.isDragging) {
                         endDrag();
                     }
                     dragState.startY = 0;
                     dragState.touchId = null;
-                }, { passive: true });
+                    dragState.isLongPressActive = false;
+                };
+
+                // Agregar event listeners
+                item.addEventListener('touchstart', touchStartHandler, { passive: true });
+                item.addEventListener('touchmove', touchMoveHandler, { passive: false });
+                item.addEventListener('touchend', touchEndHandler, { passive: true });
+                item.addEventListener('touchcancel', touchCancelHandler, { passive: true });
+
+                // Guardar para limpiar después
+                window._habitEventListeners.push({
+                    element: item,
+                    events: [
+                        { type: 'touchstart', handler: touchStartHandler },
+                        { type: 'touchmove', handler: touchMoveHandler },
+                        { type: 'touchend', handler: touchEndHandler },
+                        { type: 'touchcancel', handler: touchCancelHandler }
+                    ]
+                });
             });
 
             // ============================================================
@@ -2368,73 +2406,88 @@
 
             // Eventos: Guardar tiempo
             document.querySelectorAll('.save-time:not([disabled])').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const index = parseInt(this.dataset.index);
-                    const habit = habits[index];
-                    if (habit.type === 'unique') return;
-                    const input = document.querySelector(`.time-input-mini[data-index="${index}"]`);
-                    const minutes = parseInt(input.value);
-                    if (isNaN(minutes) || minutes < 1) {
-                        alert('Por favor, ingresa un número válido de minutos (mínimo 1).');
-                        return;
-                    }
-                    const todayStr = getDateStr(new Date());
-                    if (!habit.timeLogs) habit.timeLogs = {};
-                    habit.timeLogs[todayStr] = minutes;
-                    saveAndRender();
-                });
+                btn.removeEventListener('click', handleSaveTime);
+                btn.addEventListener('click', handleSaveTime);
             });
 
             // Eventos: Check
             document.querySelectorAll('.habit-check:not(.disabled)').forEach((btn) => {
-                btn.addEventListener('click', function() {
-                    const index = parseInt(this.dataset.index);
-                    const todayStr = getDateStr(new Date());
-                    const habit = habits[index];
-
-                    if (!habit.completedDates) habit.completedDates = [];
-                    const idx = habit.completedDates.indexOf(todayStr);
-                    if (idx === -1) {
-                        habit.completedDates.push(todayStr);
-                        if (habit.type === 'unique') {
-                            if (!habit.timeLogs) habit.timeLogs = {};
-                            habit.timeLogs[todayStr] = habit.expectedTime || 30;
-                        }
-                    } else {
-                        habit.completedDates.splice(idx, 1);
-                        if (habit.type === 'unique' && habit.timeLogs) {
-                            delete habit.timeLogs[todayStr];
-                        }
-                    }
-                    saveAndRender();
-                });
+                btn.removeEventListener('click', handleCheck);
+                btn.addEventListener('click', handleCheck);
             });
 
             // Eventos: Eliminar
             document.querySelectorAll('.habit-delete').forEach((btn) => {
-                btn.addEventListener('click', function() {
-                    const index = parseInt(this.dataset.index);
-                    if (confirm(`¿Eliminar el hábito "${habits[index].name}"?`)) {
-                        habits.splice(index, 1);
-                        saveAndRender();
-                    }
-                });
+                btn.removeEventListener('click', handleDelete);
+                btn.addEventListener('click', handleDelete);
             });
 
             // Eventos: Enter en input de tiempo
             document.querySelectorAll('.time-input-mini').forEach(input => {
-                input.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        const index = parseInt(this.dataset.index);
-                        const saveBtn = document.querySelector(`.save-time[data-index="${index}"]`);
-                        if (saveBtn && !saveBtn.disabled) {
-                            saveBtn.click();
-                        }
-                    }
-                });
+                input.removeEventListener('keypress', handleTimeEnter);
+                input.addEventListener('keypress', handleTimeEnter);
             });
 
             updateProgressRing();
+        }
+
+        // ============================================================
+        // FUNCIONES MANEJADORAS DE EVENTOS (para poder removerlos)
+        // ============================================================
+        function handleSaveTime(e) {
+            const index = parseInt(this.dataset.index);
+            const habit = habits[index];
+            if (habit.type === 'unique') return;
+            const input = document.querySelector(`.time-input-mini[data-index="${index}"]`);
+            const minutes = parseInt(input.value);
+            if (isNaN(minutes) || minutes < 1) {
+                alert('Por favor, ingresa un número válido de minutos (mínimo 1).');
+                return;
+            }
+            const todayStr = getDateStr(new Date());
+            if (!habit.timeLogs) habit.timeLogs = {};
+            habit.timeLogs[todayStr] = minutes;
+            saveAndRender();
+        }
+
+        function handleCheck(e) {
+            const index = parseInt(this.dataset.index);
+            const todayStr = getDateStr(new Date());
+            const habit = habits[index];
+
+            if (!habit.completedDates) habit.completedDates = [];
+            const idx = habit.completedDates.indexOf(todayStr);
+            if (idx === -1) {
+                habit.completedDates.push(todayStr);
+                if (habit.type === 'unique') {
+                    if (!habit.timeLogs) habit.timeLogs = {};
+                    habit.timeLogs[todayStr] = habit.expectedTime || 30;
+                }
+            } else {
+                habit.completedDates.splice(idx, 1);
+                if (habit.type === 'unique' && habit.timeLogs) {
+                    delete habit.timeLogs[todayStr];
+                }
+            }
+            saveAndRender();
+        }
+
+        function handleDelete(e) {
+            const index = parseInt(this.dataset.index);
+            if (confirm(`¿Eliminar el hábito "${habits[index].name}"?`)) {
+                habits.splice(index, 1);
+                saveAndRender();
+            }
+        }
+
+        function handleTimeEnter(e) {
+            if (e.key === 'Enter') {
+                const index = parseInt(this.dataset.index);
+                const saveBtn = document.querySelector(`.save-time[data-index="${index}"]`);
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
         }
 
         function escapeHtml(text) {
