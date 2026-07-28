@@ -1,7 +1,7 @@
 // ============================================================
-// SERVICE WORKER - Focus Habit Tracker
+// SERVICE WORKER - Focus Habit Tracker (VERSIÓN 2.0)
 // ============================================================
-const CACHE_NAME = 'focus-habit-v1';
+const CACHE_NAME = 'focus-habit-v2'; // <-- CAMBIADO A v2 PARA FORZAR ACTUALIZACIÓN
 const urlsToCache = [
     'index.html',
     'manifest.json',
@@ -10,23 +10,35 @@ const urlsToCache = [
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
 ];
 
-// Instalación
+// ============================================================
+// INSTALACIÓN
+// ============================================================
 self.addEventListener('install', (event) => {
+    console.log('📦 Service Worker instalando...');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('📦 Cache abierto');
+                console.log('📦 Archivos cacheados');
                 return cache.addAll(urlsToCache);
+            })
+            .then(() => {
+                console.log('✅ Service Worker instalado correctamente');
+                // Forzar activación inmediata
+                return self.skipWaiting();
             })
     );
 });
 
-// Activación
+// ============================================================
+// ACTIVACIÓN
+// ============================================================
 self.addEventListener('activate', (event) => {
+    console.log('⚡ Service Worker activando...');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
+                    // Eliminar caches antiguos (que no sean la versión actual)
                     if (cacheName !== CACHE_NAME) {
                         console.log('🗑️ Cache antiguo eliminado:', cacheName);
                         return caches.delete(cacheName);
@@ -34,15 +46,22 @@ self.addEventListener('activate', (event) => {
                 })
             );
         })
+        .then(() => {
+            console.log('✅ Service Worker activado correctamente');
+            // Tomar control de todas las páginas abiertas
+            return self.clients.claim();
+        })
     );
 });
 
-// Fetch
+// ============================================================
+// FETCH (INTERCEPTAR PETICIONES)
+// ============================================================
 self.addEventListener('fetch', (event) => {
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
-                // Cache hit - devolver respuesta del cache
+                // Si está en cache, devolverlo
                 if (response) {
                     return response;
                 }
@@ -68,4 +87,13 @@ self.addEventListener('fetch', (event) => {
                 );
             })
     );
+});
+
+// ============================================================
+// MENSAJES DESDE LA APP (PARA FORZAR ACTUALIZACIÓN)
+// ============================================================
+self.addEventListener('message', (event) => {
+    if (event.data === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });
