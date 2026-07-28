@@ -146,14 +146,20 @@
             user-select: none;
         }
 
+        html, body {
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         body {
             background: linear-gradient(135deg, #1e1e2f, #2a2a40);
-            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: flex-start;
             padding: 20px;
             touch-action: pan-y;
+            min-height: 100vh;
         }
 
         #app {
@@ -170,6 +176,7 @@
             margin-top: 20px;
             opacity: 0;
             transition: opacity 0.8s ease;
+            min-height: calc(100vh - 40px);
         }
 
         #app.visible {
@@ -209,6 +216,13 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             padding-bottom: 10px;
             flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            background: rgba(30, 30, 47, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 50;
+            border-radius: 12px;
+            padding: 8px 4px;
         }
 
         .menu-btn {
@@ -375,18 +389,18 @@
         .progress-stats .dot.time { background: #4ade80; }
 
         /* ======================================== */
-        /* HÁBITOS - CON LONG PRESS (2 SEGUNDOS) */
+        /* HÁBITOS - CON LONG PRESS (2 SEGUNDOS) Y SCROLL COMPLETO */
         /* ======================================== */
         #habits-container {
             margin: 12px 0 16px 0;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-height: 350px;
-            overflow-y: auto;
+            /* SIN MAX-HEIGHT - OCUPA TODO EL ESPACIO */
             touch-action: pan-y;
             -webkit-overflow-scrolling: touch;
             position: relative;
+            padding-bottom: 20px;
         }
 
         .habit-item {
@@ -1159,23 +1173,20 @@
         }
 
         /* Scrolls */
-        #habits-container::-webkit-scrollbar,
-        .edit-list::-webkit-scrollbar {
-            width: 4px;
-        }
-        #habits-container::-webkit-scrollbar-track,
-        .edit-list::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        #habits-container::-webkit-scrollbar-thumb,
-        .edit-list::-webkit-scrollbar-thumb {
-            background: #4b5563;
-            border-radius: 10px;
-        }
-
         .edit-list {
             max-height: 400px;
             overflow-y: auto;
+        }
+
+        .edit-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .edit-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .edit-list::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
         }
 
         /* Responsive */
@@ -1205,6 +1216,7 @@
             .spinner { width: 48px; height: 48px; }
             .habit-item .drag-handle { font-size: 0.7rem; padding: 2px 6px 2px 2px; }
             .habit-item .long-press-indicator { font-size: 0.5rem; padding: 1px 8px; }
+            #app { min-height: auto; }
         }
     </style>
 </head>
@@ -1339,6 +1351,7 @@
                     <br>✅ Marca el círculo para completar el hábito hoy.
                     <br>⏱️ Los hábitos <strong>"Con tiempo"</strong> permiten registrar minutos.
                     <br>⭐ Los hábitos <strong>"Único"</strong> se marcan como hechos (100%).
+                    <br>📜 <strong>Desliza hacia abajo</strong> para ver más hábitos.
                 </p>
             </div>
         </div>
@@ -1833,7 +1846,7 @@
         }
 
         // ============================================================
-        // DRAG & DROP - FUNCIONES (LONG PRESS CORREGIDO)
+        // DRAG & DROP - FUNCIONES
         // ============================================================
         function swapHabits(fromIndex, toIndex) {
             if (fromIndex === toIndex) return;
@@ -2207,7 +2220,7 @@
         }
 
         // ============================================================
-        // RENDER: HÁBITOS (con Long Press CORREGIDO)
+        // RENDER: HÁBITOS
         // ============================================================
         function renderHabits() {
             const container = document.getElementById('habits-container');
@@ -2283,10 +2296,10 @@
             document.getElementById('habitos-counter').textContent = `${habits.length} activos`;
 
             // ============================================================
-            // EVENTOS: LONG PRESS (2 segundos) - CORREGIDO
+            // EVENTOS: LONG PRESS (2 segundos)
             // ============================================================
 
-            // Remover event listeners previos si existían (usamos una nueva variable para evitar duplicados)
+            // Remover event listeners previos
             if (window._habitEventListeners) {
                 window._habitEventListeners.forEach(({ element, events }) => {
                     events.forEach(({ type, handler }) => {
@@ -2432,7 +2445,7 @@
         }
 
         // ============================================================
-        // FUNCIONES MANEJADORAS DE EVENTOS (para poder removerlos)
+        // FUNCIONES MANEJADORAS DE EVENTOS
         // ============================================================
         function handleSaveTime(e) {
             const index = parseInt(this.dataset.index);
@@ -2609,7 +2622,7 @@
         }
 
         // ============================================================
-        // RENDER: ESTADÍSTICAS
+        // RENDER: ESTADÍSTICAS (resumen)
         // ============================================================
         function renderStats() {
             const total = habits.length;
@@ -3404,6 +3417,7 @@
         console.log('🎯 Focus Habit Tracker - PWA con respaldo automático cada 15 días');
         console.log('📁 Los respaldos se guardan en la carpeta de descargas');
         console.log('👆 Mantén presionado un hábito por 2 segundos para reordenarlo');
+        console.log('📜 Desliza hacia abajo para ver más hábitos');
     </script>
 </body>
 </html>
